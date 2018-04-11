@@ -6,6 +6,27 @@ import copy
 
 
 def calc_iou(R, img_data, C, class_mapping):
+    '''
+    Match one set of bboxes in R with another set of groud truth bboxes in img_data
+    according to the highest IOU (intersection over union) ratio and filtered by 
+    non maximum suppression
+    
+    Args
+        | R: (N,4) coordinates of N bboxes (x1, y1, x2, y2) 
+        | img_data: a dict storing bboxes, width, height of input image
+        | C: configuration where rpn_stride, classifier_min_overlap, classifier_max_overlap are used
+        | class_mapping: a dict with key of class name and value of class index
+
+    Return
+        | X: (1,N',4) transformed coordinates in R as (x1,y1,w,h), N' is the number of bobx after 
+        filtering by min_class_overlap and non maximum suppression. 
+        | Y1: (1 , N' , K), the binary class label including background for each bbox in R
+        | Y2: (1 , N' , 8(K-1)), each row stores [4 labels, 4 regression values] 
+        The labels are [1 1 1 1] for specific class excluding background
+        The regression values are (tx,ty,tw,th). Check faster RCNN paper for more details
+        | IoUs: 2D matrix (N',1) best iou value (classifier_min_overlap,1) for each bbox in R 
+    
+    '''    
     bboxes = img_data['bboxes']
     (width, height) = (img_data['width'], img_data['height'])
     # get image dimensions for resizing
@@ -68,11 +89,15 @@ def calc_iou(R, img_data, C, class_mapping):
             else:
                 print('roi = {}'.format(best_iou))
                 raise RuntimeError
-
+        # This value should be named as class_idx
+        # The length of class_mapping is actually K
+        # class_label is a vector of binary class probability with only 0/1.
         class_num = class_mapping[cls_name]
         class_label = len(class_mapping) * [0]
         class_label[class_num] = 1
         y_class_num.append(copy.deepcopy(class_label))
+        
+        # Important here! the labels and coordinates exclude background class
         coords = [0] * 4 * (len(class_mapping) - 1)
         labels = [0] * 4 * (len(class_mapping) - 1)
         if cls_name != 'bg':
@@ -83,6 +108,7 @@ def calc_iou(R, img_data, C, class_mapping):
             y_class_regr_coords.append(copy.deepcopy(coords))
             y_class_regr_label.append(copy.deepcopy(labels))
         else:
+            # If the class is background, append 0s to the results
             y_class_regr_coords.append(copy.deepcopy(coords))
             y_class_regr_label.append(copy.deepcopy(labels))
 
@@ -155,6 +181,16 @@ def apply_regr_np(X, T):
 
 
 def non_max_suppression_fast(boxes, overlap_thresh=0.9, max_boxes=300):
+    '''
+    Non maximum suppression by overlap treshold and constrained to max_boxes
+    
+    # Args
+        | boxes: 2D matrix (num_achors * rows * cols, 5) where each row stores [x1, y1, x2, y2, prob]
+    
+    # Return
+        | a 2D matrixs (n,5) after non maximum suppresion where each row stores [x1, y1, x2, y2, prob], n is the number of boxes returned 
+    
+    '''
     # I changed this method with boxes already contains probabilities, so don't need prob send in this method
     # TODO: Caution!!! now the boxes actually is [x1, y1, x2, y2, prob] format!!!! with prob built in
     if len(boxes) == 0:
@@ -210,6 +246,17 @@ def non_max_suppression_fast(boxes, overlap_thresh=0.9, max_boxes=300):
 
 
 def rpn_to_roi(rpn_layer, regr_layer, cfg, dim_ordering, use_regr=True, max_boxes=300, overlap_thresh=0.9):
+    '''
+    Extract region of interest (ROI) coordinates from the anchor classification and regression result.
+    
+    # Args
+        | rpn_layer: 4D matrix (1 , rows , cols , num_anchors), anchor binary classification result where num_anchors = anchor_sizes * anchor_ratios
+        | regr_layer:4D matrix (1 , rows , cols , num_anchors * 4), anchor bounding box regression result
+
+    # Return
+        | roi_layers: 2D matrix (n , 4), each row stores (x1,y1,x2,y2), n is the number of boxes returned after non maximum suppression
+    '''    
+    
     regr_layer = regr_layer / cfg.std_scaling
 
     anchor_sizes = cfg.anchor_box_scales
@@ -222,8 +269,10 @@ def rpn_to_roi(rpn_layer, regr_layer, cfg, dim_ordering, use_regr=True, max_boxe
 
     elif dim_ordering == 'tf':
         (rows, cols) = rpn_layer.shape[1:3]
-
+    
+    # Idx of anchor
     curr_layer = 0
+    
     if dim_ordering == 'tf':
         A = np.zeros((4, rpn_layer.shape[1], rpn_layer.shape[2], rpn_layer.shape[3]))
     elif dim_ordering == 'th':
@@ -239,9 +288,14 @@ def rpn_to_roi(rpn_layer, regr_layer, cfg, dim_ordering, use_regr=True, max_boxe
             else:
                 regr = regr_layer[0, :, :, 4 * curr_layer:4 * curr_layer + 4]
                 regr = np.transpose(regr, (2, 0, 1))
-
+            
+            # Get x,y coordinates for each pixel in the feature map
+            
             X, Y = np.meshgrid(np.arange(cols), np.arange(rows))
-
+            
+            # A stores [x1,y1,w,h] for each pixel in the feature map (rows x cols)
+            # A has a shape (4,rows,cols,num_anchors)
+            
             A[0, :, :, curr_layer] = X - anchor_x / 2
             A[1, :, :, curr_layer] = Y - anchor_y / 2
             A[2, :, :, curr_layer] = anchor_x
@@ -249,20 +303,33 @@ def rpn_to_roi(rpn_layer, regr_layer, cfg, dim_ordering, use_regr=True, max_boxe
 
             if use_regr:
                 A[:, :, :, curr_layer] = apply_regr_np(A[:, :, :, curr_layer], regr)
-
+            # set minimum value of w,h as 1
             A[2, :, :, curr_layer] = np.maximum(1, A[2, :, :, curr_layer])
             A[3, :, :, curr_layer] = np.maximum(1, A[3, :, :, curr_layer])
+            
+            # A now bcomes (x1,y1,x2,y2)
+            
             A[2, :, :, curr_layer] += A[0, :, :, curr_layer]
             A[3, :, :, curr_layer] += A[1, :, :, curr_layer]
+
+            # Set the range each anchor (x1,y1,x2,y2) within [0,row-1] and [0, cols-1]
 
             A[0, :, :, curr_layer] = np.maximum(0, A[0, :, :, curr_layer])
             A[1, :, :, curr_layer] = np.maximum(0, A[1, :, :, curr_layer])
             A[2, :, :, curr_layer] = np.minimum(cols - 1, A[2, :, :, curr_layer])
             A[3, :, :, curr_layer] = np.minimum(rows - 1, A[3, :, :, curr_layer])
-
+            
             curr_layer += 1
-
+    
+    # Convert the boxes and probabilities of anchors into 2D array
+    
+    # A's shape (4,rows,cols,num_anchors)
+    # Ravel A to get all_boxes with 
+    # shape of (num_anchors*rows*cols,4)
     all_boxes = np.reshape(A.transpose((0, 3, 1, 2)), (4, -1)).transpose((1, 0))
+    
+    # rpn_layer shape (1,rows,cols,num_anchors)
+    # all_probs shape (num_anchors*rows*cols,1)
     all_probs = rpn_layer.transpose((0, 3, 1, 2)).reshape((-1))
 
     x1 = all_boxes[:, 0]
@@ -275,9 +342,15 @@ def rpn_to_roi(rpn_layer, regr_layer, cfg, dim_ordering, use_regr=True, max_boxe
     all_boxes = np.delete(all_boxes, ids, 0)
     all_probs = np.delete(all_probs, ids, 0)
 
-    # I guess boxes and prob are all 2d array, I will concat them
+    # Concatenate two matries 
+    #    (num_anchors*rows*cols,4) + (num_anchors*rows*cols,1)
+    # and get (num_anchors*rows*cols,5), each row has (x1,y1,x2,y2,prob)
+    
     all_boxes = np.hstack((all_boxes, np.array([[p] for p in all_probs])))
+    
+    # After non_max_suppression, the boxes number is reduced 
     result = non_max_suppression_fast(all_boxes, overlap_thresh=overlap_thresh, max_boxes=max_boxes)
     # omit the last column which is prob
+    # export a matrix in shape of (num_anchors*rows*cols,4)
     result = result[:, 0: -1]
     return result

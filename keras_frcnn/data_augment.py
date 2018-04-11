@@ -4,6 +4,19 @@ import copy
 
 
 def augment(img_data, config, augment=True):
+	'''
+	Augment image data by flipping vertically and horizontally
+
+	# Args
+		| img_data: a dict obj storing filepath, bboxes
+		| config: configuration
+		| augment: true/false	
+
+	# Return
+		| img_data_aug: a dict obj storing bbox and image width, height
+		| img: (H,W,3) augmented image data read from the img_data.filepath
+
+	'''
 	assert 'filepath' in img_data
 	assert 'bboxes' in img_data
 	assert 'width' in img_data

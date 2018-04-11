@@ -77,7 +77,28 @@ class SampleSelector:
 
 
 def calc_rpn(C, img_data, width, height, resized_width, resized_height, img_length_calc_function):
+	'''
+	Generating anchors with information of overlapping and regression parameters
+	from ground truth bboxes and input image shape. This function is invoked privately 
+	and wrapped inside get_anchor_gt()
+	
+	# Args
+		| C: configuration
+		| img_data: a dict storing bboxes
+		| width, height, resized_width, resized_height: orginal and resized image shape
+		| img_length_calc_function: a rpn projection function maps shape of input image
+		to shape of the feature map in last convolution layer of the base net
 
+	# Return
+		| y_rpn_clas: (1, num_anchors * 2, H , W), it concatentates  
+		[y_is_box_valid, y_rpn_overlap], each with size of num_anchors. The 
+		y_is_box_valid indicates positive and negative box (1) vs neutral box (0)
+		The y_rpn_overlap indicates positive class (1) v.s. negative class (0)
+
+		| y_rpn_reg: (1, num_anchors * 8, H , W). it concatentates 
+		[y_rpn_overlap,y_rpn_regr], in form of [1,1,1,1,x1,y1,w,h] for non-
+		background class and [0,0,0,0,x1,y1,w,h] for background class.
+	'''
 	downscale = float(C.rpn_stride)
 	anchor_sizes = C.anchor_box_scales
 	anchor_ratios = C.anchor_box_ratios
@@ -89,9 +110,12 @@ def calc_rpn(C, img_data, width, height, resized_width, resized_height, img_leng
 
 	n_anchratios = len(anchor_ratios)
 	
-	# initialise empty output objectives
+	# initialise empty output objectives, channel at the last dimension
+	# 
 	y_rpn_overlap = np.zeros((output_height, output_width, num_anchors))
+	# 
 	y_is_box_valid = np.zeros((output_height, output_width, num_anchors))
+	# 
 	y_rpn_regr = np.zeros((output_height, output_width, num_anchors * 4))
 
 	num_bboxes = len(img_data['bboxes'])
@@ -214,11 +238,17 @@ def calc_rpn(C, img_data, width, height, resized_width, resized_height, img_leng
 			y_rpn_regr[
 				best_anchor_for_bbox[idx,0], best_anchor_for_bbox[idx,1], start:start+4] = best_dx_for_bbox[idx, :]
 
+	# Cast (H, W, num_anchors) to (1, num_anchors, H, W)
+
 	y_rpn_overlap = np.transpose(y_rpn_overlap, (2, 0, 1))
 	y_rpn_overlap = np.expand_dims(y_rpn_overlap, axis=0)
 
+	# Cast (H, W, num_anchors) to (1, num_anchors, H, W)
+
 	y_is_box_valid = np.transpose(y_is_box_valid, (2, 0, 1))
 	y_is_box_valid = np.expand_dims(y_is_box_valid, axis=0)
+
+	# Cast (H, W, 4 * num_anchors) to (1, 4 * num_anchors, H, W)
 
 	y_rpn_regr = np.transpose(y_rpn_regr, (2, 0, 1))
 	y_rpn_regr = np.expand_dims(y_rpn_regr, axis=0)
@@ -240,6 +270,9 @@ def calc_rpn(C, img_data, width, height, resized_width, resized_height, img_leng
 	if len(neg_locs[0]) + num_pos > num_regions:
 		val_locs = random.sample(range(len(neg_locs[0])), len(neg_locs[0]) - num_pos)
 		y_is_box_valid[0, neg_locs[0][val_locs], neg_locs[1][val_locs], neg_locs[2][val_locs]] = 0
+
+	# Concatenate two 4D tensors (1, num_anchors, H, W) along the second axis
+	# Output of (1, 2 * num_anchors, H, W)
 
 	y_rpn_cls = np.concatenate([y_is_box_valid, y_rpn_overlap], axis=1)
 	y_rpn_regr = np.concatenate([np.repeat(y_rpn_overlap, 4, axis=1), y_rpn_regr], axis=1)
@@ -271,7 +304,26 @@ def threadsafe_generator(f):
 	return g
 
 def get_anchor_gt(all_img_data, class_count, C, img_length_calc_function, backend, mode='train'):
+	'''
+	
+	A public function for generating anchors with overlapping and regression parameters
+	from ground truth bboxes and shape of input image. 
 
+	Args
+		| all_img_data: a list of dicts, each dict stores bboxes for a specific image
+		| class_count: a dict storing the number of images in each class (class name as key)
+		| C: configuration obj
+		| img_length_cal_function: a function calculates the shape of feature map from the shape of input image
+
+	Return
+		| x_img: [1,H,W,3], raw input image
+		| [y_rpn_cls, y_rpn_regr] where
+		y_rpn_cls: [1,H',W',2*num_anchors], anchor validality (0/1) + anchor class(0/1). H',W' is feature map shape
+		y_rpn_regr: [1,H',W',8*num_anchors], anchor class (4 duplicate) + regression (x1,y1,w,h)
+		| img_data_aug: a dict obj storing bbox and image width, height
+		See the calc_rpn() for more details.
+	
+	'''
 	# The following line is not useful with Python 3.5, it is kept for the legacy
 	# all_img_data = sorted(all_img_data)
 
@@ -324,7 +376,8 @@ def get_anchor_gt(all_img_data, class_count, C, img_length_calc_function, backen
 				x_img = np.expand_dims(x_img, axis=0)
 
 				y_rpn_regr[:, y_rpn_regr.shape[1]//2:, :, :] *= C.std_scaling
-
+				
+				# If backend is tensforflow, move channel to the last dimension
 				if backend == 'tf':
 					x_img = np.transpose(x_img, (0, 2, 3, 1))
 					y_rpn_cls = np.transpose(y_rpn_cls, (0, 2, 3, 1))
