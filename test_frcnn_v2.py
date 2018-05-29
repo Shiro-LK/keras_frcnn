@@ -44,11 +44,11 @@ class_mapping = C.class_mapping
 if 'bg' not in class_mapping:
     class_mapping['bg'] = len(class_mapping)
 
-class_mapping = {v: k for k, v in class_mapping.items()}
-print(class_mapping)
+class_mapping_inv = {v: k for k, v in class_mapping.items()}
+print(class_mapping_inv)
 
 # Choose color of the boxes depending of the class
-class_to_color = {class_mapping[v]: np.random.randint(0, 255, 3) for v in class_mapping}
+class_to_color = {class_mapping_inv[v]: np.random.randint(0, 255, 3) for v in class_mapping_inv}
 
 C.num_rois = int(options.num_rois)
 
@@ -70,7 +70,7 @@ if options.test_path is not None:
         filepath = os.path.join(img_path,img_name)
 
         img = cv2.imread(filepath)
-        img, all_dets = predict_on_image(img, model_rpn, model_classifier_only, C, class_mapping, class_to_color, bbox_threshold=bbox_threshold, overlap_threshold_rpn=overlap_threshold_rpn, overlap_threshold_classifier=overlap_threshold_class)
+        img, all_dets = predict_on_image(img, model_rpn, model_classifier_only, C, class_mapping_inv, class_to_color, bbox_threshold=bbox_threshold, overlap_threshold_rpn=overlap_threshold_rpn, overlap_threshold_classifier=overlap_threshold_class)
         print('Elapsed time = {}'.format(time.time() - st))
         print(all_dets)
         cv2.imshow('img', img)
@@ -85,7 +85,7 @@ if options.test_image is not None:
     print(img_name)
     st = time.time()
     img = cv2.imread(img_name)
-    img, all_dets = predict_on_image(img, model_rpn, model_classifier_only, C, class_mapping, class_to_color, bbox_threshold=bbox_threshold, overlap_threshold_rpn=overlap_threshold_rpn, overlap_threshold_classifier=overlap_threshold_class)
+    img, all_dets = predict_on_image(img, model_rpn, model_classifier_only, C, class_mapping_inv, class_to_color, bbox_threshold=bbox_threshold, overlap_threshold_rpn=overlap_threshold_rpn, overlap_threshold_classifier=overlap_threshold_class)
     print('Elapsed time = {}'.format(time.time() - st))
     print(all_dets)
     cv2.imshow('img', img)

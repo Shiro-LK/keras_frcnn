@@ -19,21 +19,13 @@ import keras_frcnn.roi_helpers as roi_helpers
 from keras.utils import generic_utils
 from keras_frcnn.get_validation_loss import get_validation_loss, get_validation_lossv2
 import tensorflow as tf
-import linecache
-from functions import createSummaryTensorboard, TensorboardWrite
+from functions import createSummaryTensorboard, TensorboardWrite, PrintException
 seed = 10
 random.seed(seed)
 np.random.seed(seed)
 
 print('current path : ', dir_path)
-def PrintException():
-    exc_type, exc_obj, tb = sys.exc_info()
-    f = tb.tb_frame
-    lineno = tb.tb_lineno
-    filename = f.f_code.co_filename
-    linecache.checkcache(filename)
-    line = linecache.getline(filename, lineno, f.f_globals)
-    print('EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj))
+
 
 
 #####################################
@@ -266,7 +258,7 @@ if C.use_validation:
 
 
 class_mapping_inv = {v: k for k, v in class_mapping.items()}
-
+class_to_color = {class_mapping_inv[v]: np.random.randint(0, 255, 3) for v in class_mapping_inv}
 ##############
 ## Training ##
 ##############
@@ -277,7 +269,7 @@ for epoch_num in range(0,num_epochs):
 
     progbar = generic_utils.Progbar(epoch_length)
     print('Epoch {}/{}'.format(epoch_num+1 , num_epochs))
-
+    
     while True:
 		# continue until we reach the number of iteration necessary for one epoch.
         try:
@@ -289,16 +281,38 @@ for epoch_num in range(0,num_epochs):
                 if mean_overlapping_bboxes == 0:
                     print('RPN is not producing bounding boxes that overlap the ground truth boxes. Check RPN settings or keep training.')
 
+            # data_gen_train yields a list [x_img, [y_rpn_cls, y_rpn_reg], img_dict]	
+            # X: [1,H,W,3], raw input image
+            # Y: [y_rpn_cls, y_rpn_reg]
+            #     y_rpn_cls: [1,H',W',2*num_anchors], anchor validality (0/1) + anchor class(0/1). H',W' is feature map shape
+            #     y_rpn_regr: [1,H',W',8*num_anchors], anchor class (4 duplicate) + regression (x1,y1,w,h)
+            # img_data: a dict obj storing bbox and image width, height
+             
+            # Y is now anchors, X Y are 4D tensors
             X, Y, img_data = next(data_gen_train)
 
             loss_rpn = model_rpn.train_on_batch(X, Y)
             #loss_rpn = loss_rpn[0:2]
             
-            
-            P_rpn = model_rpn.predict_on_batch(X)
+            # The ouput of model_rpn is [x_class,x_regr]
+            # P_rpn[0] = x_class: (1, H',W', num_anchor) the softmax probability for objectness classification
+            # P_rpn[1] = x_regr: (1, H', W',4*num_anchor) the bbox regression result [x1,y1,w,h]
 
+            P_rpn = model_rpn.predict_on_batch(X)
+            
+            # R : (n,4) Each row stores (x1,y1,x2,y2), n is the number of boxes returned after non maximum suppression
             R = roi_helpers.rpn_to_roi(P_rpn[0], P_rpn[1], C, K.image_dim_ordering(), use_regr=True, overlap_thresh=0.7, max_boxes=300)
+            
             # note: calc_iou converts from (x1,y1,x2,y2) to (x,y,w,h) format
+
+            # X2: (1, N', 4), cast (x1,y1,x2,y2) in result to (x1,y1,w,h), where N' is the number of bobx returned from non
+            # maximum suppression. 
+            # Y1: (1 , N' , K), each row is a binary class vector (only 0/1). K excludes background
+            # Y2: (1 , N' , 8(K-1)), each row stores [4 labels, 4 regression values (tx,ty,tw,th)]
+            # The labels are (1 1 1 1) for not background class and (0 0 0 0) for background class
+            # The regression values are (tx,ty,tw,th)
+            # IoUs: 2D matrix (N',1) best iou value (classifier_min_overlap,1) for each bbox in R     
+                
             X2, Y1, Y2, IouS = roi_helpers.calc_iou(R, img_data, C, class_mapping)
 
             if X2 is None:
@@ -306,14 +320,20 @@ for epoch_num in range(0,num_epochs):
                 rpn_accuracy_for_epoch.append(0)
                 continue
 
+            # The last axis is class label and the last one represent background
+            # neg_samples are these classified as background
+            # pos_samples are these classified as non-background
+            
             neg_samples = np.where(Y1[0, :, -1] == 1)
             pos_samples = np.where(Y1[0, :, -1] == 0)
 
+            # cast (1, N, K) to (N, K)
             if len(neg_samples) > 0:
                 neg_samples = neg_samples[0]
             else:
                 neg_samples = []
-
+                
+            # cast (1, N, K) to (N, K)
             if len(pos_samples) > 0:
                 pos_samples = pos_samples[0]
             else:
@@ -322,6 +342,9 @@ for epoch_num in range(0,num_epochs):
             rpn_accuracy_rpn_monitor.append(len(pos_samples))
             rpn_accuracy_for_epoch.append((len(pos_samples)))
 
+            # Important: Keep balance between the number of positive and negative samples
+            # sel_samples is randomly generated indices
+            
             if C.num_rois > 1:
                 if len(pos_samples) < C.num_rois//2:
                     selected_pos_samples = pos_samples.tolist()
@@ -342,6 +365,16 @@ for epoch_num in range(0,num_epochs):
                 else:
                     sel_samples = random.choice(pos_samples)
 
+            # Train the output of rpn using the roi classifier 
+            # X is raw image: image input to the ROI classifier
+            # X2: (1, N, 4) is the (x1,y1,w,h): input to the ROI classifier
+            # Y1: (1 , N' , K), true class including background
+            # Y2: (1 , N' , 8(K-1)), true regression [4 labels, 4 regression values (tx,ty,tw,th)], 
+            # In the model_classifier
+            # The pred_cls shape is (1, N',K). 
+            # The pred_reg shape is (1, N', 4*(K-1)) which exclude background classes
+                
+                
             loss_class = model_classifier.train_on_batch([X, X2[:, sel_samples, :]], [Y1[:, sel_samples, :], Y2[:, sel_samples, :]])
 
             losses[iter_num, 0] = loss_rpn[1]
@@ -369,7 +402,7 @@ for epoch_num in range(0,num_epochs):
                 
                 if C.use_validation:
                     val_losses = get_validation_lossv2(data_gen_val, len(val_imgs),
-                                                     model_rpn, model_classifier, model_classifier_only, C, writer_tensorboard = writer_test)
+                                                     model_rpn, model_classifier, model_classifier_only, C, class_mapping_inv, class_to_color, writer_tensorboard = writer_test)
 
                 if C.verbose:
                     print('Mean number of bounding boxes from RPN overlapping ground truth boxes: {}'.format(mean_overlapping_bboxes))

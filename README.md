@@ -20,10 +20,10 @@ I have trained a model to predict kitti. I will update a dropbox link here later
 to train a new dataset is also very simple and straight forward. Simply convert your detection label file whatever format into this format:
 
 ```
-/path/training/image_2/000000.png,712.40,143.00,810.73,307.92,Pedestrian,training
-/path/training/image_2/000001.png,599.41,156.40,629.75,189.25,Truck,testing
+/path/training/image_2/000000.png,712.40,143.00,810.73,307.92,Pedestrian
+/path/training/image_2/000001.png,599.41,156.40,629.75,189.25,Truck
 ```
-Which is `/path/to/img.png,width,height,x1,y1,x2,y2,class_name,imageset`, with this simple file, we don't need class map file, our training program will statistic this automatically.
+Which is `/path/to/img.png,x1,y1,x2,y2,class_name`, with this simple file, we don't need class map file, our training program will statistic this automatically.
 
 ## For Predict
 

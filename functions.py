@@ -181,7 +181,7 @@ def load_models_for_test(C, class_mapping):
     
     return model_rpn, model_classifier_only
     
-def predict_on_image(img, model_rpn, model_classifier_only, C, class_mapping, class_to_color, bbox_threshold = 0.8, overlap_thresh_rpn = 0.7, overlap_thresh_classifier = 0.5, tensorboard=False):
+def predict_on_image(img, model_rpn, model_classifier_only, C, class_mapping_inv, class_to_color, bbox_threshold = 0.8, overlap_thresh_rpn = 0.7, overlap_thresh_classifier = 0.5, tensorboard=False):
     '''
         predict on only one image
         if tensorboard parmeters is true, we need to do get the original image so remove the preprocessing (during training pass)
@@ -234,7 +234,7 @@ def predict_on_image(img, model_rpn, model_classifier_only, C, class_mapping, cl
                 if np.max(P_cls[0, ii, :]) < bbox_threshold or np.argmax(P_cls[0, ii, :]) == (P_cls.shape[2] - 1):
                     continue
 
-                cls_name = class_mapping[np.argmax(P_cls[0, ii, :])]
+                cls_name = class_mapping_inv[np.argmax(P_cls[0, ii, :])]
 
                 if cls_name not in bboxes:
                     bboxes[cls_name] = []
@@ -261,7 +261,9 @@ def predict_on_image(img, model_rpn, model_classifier_only, C, class_mapping, cl
             bbox = np.array(bboxes[key])
             # remove double boxes depending of a threshold
             new_boxes, new_probs = roi_helpers.non_max_suppression_fast(bbox, np.array(probs[key]), overlap_thresh=overlap_thresh_classifier)
+            print('number of boxes :', new_boxes.shape[0])
             for jk in range(new_boxes.shape[0]):
+                # if there is no boxes, jump loop
                 (x1, y1, x2, y2) = new_boxes[jk,:]
 
                 (real_x1, real_y1, real_x2, real_y2) = get_real_coordinates(ratio, x1, y1, x2, y2)
