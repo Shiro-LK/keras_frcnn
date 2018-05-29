@@ -26,7 +26,7 @@ def load_model_weights(model1, model2):
     '''    
     #exp = ['flatten', 'input']
     for i, layers in enumerate(model2.layers):
-      if layers.name.find('flatten') == -1 and layers.name.find('input') == -1 and layers.name.find('roi') == -1 and layers.name.find('activation') == -1:
+      if layers.name.find('flatten') == -1 and layers.name.find('input') == -1 and layers.name.find('roi') == -1 and layers.name.find('activation') == -1 and layers.name.find('add') == -1:
           model2.layers[i].set_weights(model1.get_layer(model2.layers[i].name).get_weights())
     
     
