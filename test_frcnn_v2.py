@@ -15,6 +15,7 @@ sys.setrecursionlimit(40000)
 parser = OptionParser()
 
 parser.add_option("-p", "--path", dest="test_path", help="Path to test data.", default=None)
+parser.add_option("-q", "--save", dest="save", help="save", default=False)
 parser.add_option("-i", "--image", dest="test_image", help="Path to test one image.", default=None)
 parser.add_option("-n", "--num_rois", dest="num_rois",
                 help="Number of ROIs per iteration. Higher means more memory use.", default=32)
@@ -31,7 +32,7 @@ with open(options.config_filename, 'rb') as f_in:
     C = pickle.load(f_in)
 
 
-    
+saved = bool(options.save)
 # turn off any data augmentation at test time
 C.use_horizontal_flips = False
 C.use_vertical_flips = False
@@ -89,4 +90,7 @@ if options.test_image is not None:
     print('Elapsed time = {}'.format(time.time() - st))
     print(all_dets)
     cv2.imshow('img', img)
-    cv2.waitKey(0)
+    if saved == False:
+        cv2.waitKey(0)
+    else:
+        cv2.imwrite('test.jpg',img)
