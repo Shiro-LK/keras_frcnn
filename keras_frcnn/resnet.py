@@ -256,7 +256,7 @@ def classifier(base_layers, input_rois, num_rois, nb_classes=21, trainable=False
     out_roi_pool = RoiPoolingConv(pooling_regions, num_rois)([base_layers, input_rois])
     out = classifier_layers(out_roi_pool, input_shape=input_shape, trainable=True)
 
-    out = TimeDistributed(Flatten())(out)
+    out = TimeDistributed(Flatten(name='flatten'), name='TimeDistributed_flatten')(out)
 
     out_class = TimeDistributed(Dense(nb_classes, activation='softmax', kernel_initializer='zero'),
                                 name='dense_class_{}'.format(nb_classes))(out)

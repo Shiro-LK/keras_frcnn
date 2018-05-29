@@ -37,16 +37,24 @@ def iou(a, b):
     return float(area_i) / float(area_u + 1e-6)
 
 
-def get_new_img_size(width, height, img_min_side=600):
-    if width <= height:
-        f = float(img_min_side) / width
-        resized_height = int(f * height)
-        resized_width = img_min_side
+def get_new_img_size(width, height, img_min_side=600, fixed=False):
+    '''
+        If fixed is false, then we find the new img size depend of if the width or the height is bigger.
+        else we return the fixed size (square image)
+    '''
+    if fixed == False:
+        if width <= height:
+            f = float(img_min_side) / width
+            resized_height = int(f * height)
+            resized_width = img_min_side
+        else:
+            f = float(img_min_side) / height
+            resized_width = int(f * width)
+            resized_height = img_min_side
     else:
-        f = float(img_min_side) / height
-        resized_width = int(f * width)
-        resized_height = img_min_side
-
+            resized_height = img_min_side
+            resized_width = img_min_side
+            
     return resized_width, resized_height
 
 
@@ -107,7 +115,7 @@ def calc_rpn(C, img_data, width, height, resized_width, resized_height, img_leng
     # calculate the output map size based on the network architecture
 
     (output_width, output_height) = img_length_calc_function(resized_width, resized_height)
-
+    
     n_anchratios = len(anchor_ratios)
     
     # initialise empty output objectives, channel at the last dimension
@@ -303,7 +311,7 @@ def threadsafe_generator(f):
         return threadsafe_iter(f(*a, **kw))
     return g
 
-def get_anchor_gt(all_img_data, class_count, C, img_length_calc_function, backend, mode='train', remove_mean=True):
+def get_anchor_gt(all_img_data, class_count, C, img_length_calc_function, backend, mode='train'):
     '''
     
     A public function for generating anchors with overlapping and regression parameters
@@ -353,7 +361,7 @@ def get_anchor_gt(all_img_data, class_count, C, img_length_calc_function, backen
                 assert rows == height
 
                 # get image dimensions for resizing
-                (resized_width, resized_height) = get_new_img_size(width, height, C.im_size)
+                (resized_width, resized_height) = get_new_img_size(width, height, C.im_size, C.fixed_size)
 
                 # resize the image so that smalles side is length = 600px
                 x_img = cv2.resize(x_img, (resized_width, resized_height), interpolation=cv2.INTER_CUBIC)
@@ -368,14 +376,14 @@ def get_anchor_gt(all_img_data, class_count, C, img_length_calc_function, backen
                 #x_img = x_img[:,:, (2, 1, 0)]  # BGR -> RGB
                 x_img = x_img[:,:, ::-1]  # BGR -> RGB
                 x_img = x_img.astype(np.float32)
-                if remove_mean:
+                if C.remove_mean:
                     x_img[:, :, 0] -= C.img_channel_mean[0]
                     x_img[:, :, 1] -= C.img_channel_mean[1]
                     x_img[:, :, 2] -= C.img_channel_mean[2]
                 
 
-                #x_img = np.transpose(x_img, (2, 0, 1))
-                x_img = x_img[:,:, ::-1]
+                x_img = np.transpose(x_img, (2, 0, 1))
+                #x_img = x_img[:,:, ::-1]
                 x_img /= C.img_scaling_factor
                 x_img = np.expand_dims(x_img, axis=0)
 

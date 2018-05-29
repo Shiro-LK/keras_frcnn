@@ -8,14 +8,15 @@ import xml.etree.ElementTree as ET
 import sys
 import glob
 import cv2
-def read_pascal_voc(f, filename, path, mode='train'):
+def read_pascal_voc(f, filename, path_folder, pathtosave= '', mode='train'):
     tree = ET.parse(filename)
     root = tree.getroot()
     plot = False
     prints = False
     for child in root:
         if child.tag == 'filename':
-            img = path+child.text
+            img = path_folder+'JPEGImages/'+child.text
+            img_save=pathtosave+child.text
             cvimg = cv2.imread(img)
             #cvimg2 = cvimg.copy()
             try:
@@ -27,10 +28,10 @@ def read_pascal_voc(f, filename, path, mode='train'):
             coordinate = []
             for box in child.find('bndbox'):
                 coordinate.append(box.text)
-            x1 = int(coordinate[0])
-            y1 = int(coordinate[1])
-            x2 = int(coordinate[2])
-            y2 = int(coordinate[3])
+            x1 = int(round(float(coordinate[0])))
+            y1 = int(round(float(coordinate[1])))
+            x2 = int(round(float(coordinate[2])))
+            y2 = int(round(float(coordinate[3])))
 #            x = int(coordinate[0])+int(coordinate[2])
 #            x = int(x/2)
 #            
@@ -70,15 +71,15 @@ def read_pascal_voc(f, filename, path, mode='train'):
 #                    cv2.imshow('wind2', cvimg2)
 #                    cv2.waitKey(0)
             if mode =='train':
-                f.write(img+','+str(width)+','+ str(height)+','+str(x1)+','+str(y1)+','+str(x2)+','+str(y2)+','+classe+',training'+'\n') #x,y,w,h
+                f.write(img_save+','+str(width)+','+ str(height)+','+str(x1)+','+str(y1)+','+str(x2)+','+str(y2)+','+classe+',training'+'\n') #x,y,w,h
             else:
-                f.write(img+','+str(width)+','+ str(height)+','+str(x1)+','+str(y1)+','+str(x2)+','+str(y2)+','+classe+',testing'+'\n') #x,y,w,h
+                f.write(img_save+','+str(width)+','+ str(height)+','+str(x1)+','+str(y1)+','+str(x2)+','+str(y2)+','+classe+',testing'+'\n') #x,y,w,h
 
 def save_pascal_voc(path_folder='../../dataset/VOCdevkit/VOC2007train/Annotations/', tosave='VOC2007train.txt', path_img='/DeepLearning/dataset/VOCdevkit/VOC2007test/JPEGImages/', mode = 'train'):
     with open(tosave, 'w') as f:
-        full_path = [i.replace('\\', '/') for i in glob.glob(path_folder+'*.xml')]
+        full_path = [i for i in glob.glob(path_folder+'Annotations/'+'*.xml')]
         for p in full_path:
-            read_pascal_voc(f, p , path = path_img, mode= mode)
+            read_pascal_voc(f, p , path_folder = path_folder, pathtosave=path_img, mode= mode)
             
 def combine_files(listFile, filename):
     final_data = []
@@ -91,6 +92,11 @@ def combine_files(listFile, filename):
             f.write(data)
             
             
-save_pascal_voc(path_folder='../dataset/VOCdevkit/VOC2007train/Annotations/', tosave='VOC2007train.txt', path_img='../dataset/VOCdevkit/VOC2007train/JPEGImages/', mode='train')       
-save_pascal_voc(path_folder='../dataset/VOCdevkit/VOC2007test/Annotations/', tosave='VOC2007test.txt', path_img='../dataset/VOCdevkit/VOC2007test/JPEGImages/', mode='test')
-combine_files(['VOC2007train.txt', 'VOC2007test.txt'], 'VOC2007.txt')
+#save_pascal_voc(path_folder='../dataset/VOCdevkit/VOC2007train/Annotations/', tosave='VOC2007train.txt', path_img='../dataset/VOCdevkit/VOC2007train/JPEGImages/', mode='train')       
+#save_pascal_voc(path_folder='../dataset/VOCdevkit/VOC2007test/Annotations/', tosave='VOC2007test.txt', path_img='../dataset/VOCdevkit/VOC2007test/JPEGImages/', mode='test')
+#combine_files(['VOC2007train.txt', 'VOC2007test.txt'], 'VOC2007.txt')
+            
+#save_pascal_voc(path_folder='../dataset/VOCdevkit/VOC2012train/', tosave='VOC2012train.txt', path_img='dataset/VOCdevkit/VOC2012train/JPEGImages/', mode='train')       
+#save_pascal_voc(path_folder='../dataset/VOCdevkit/VOC2012test/', tosave='VOC2012test.txt', path_img='dataset/VOCdevkit/VOC2012test/JPEGImages/', mode='test')
+#combine_files(['VOC2012train.txt', 'VOC2012test.txt'], 'VOC2012.txt')
+combine_files(['VOC2012.txt', 'VOC2007fulltrain.txt'], 'VOC++.txt')

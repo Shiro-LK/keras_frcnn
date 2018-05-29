@@ -32,14 +32,14 @@ def get_data(input_path, path=''):
 
             if imageset == 'training':
                 if class_name not in classes_count_train:
-                    classes_count_train[class_name] += 1
+                    classes_count_train[class_name] = 1
                 else:
-                    classes_count_train[class_name] = 1 
+                    classes_count_train[class_name] += 1 
             elif imageset == 'testing':
                 if class_name not in classes_count_test:
-                    classes_count_test[class_name] += 1
-                else:
                     classes_count_test[class_name] = 1
+                else:
+                    classes_count_test[class_name] += 1
                     
                     
             if class_name not in class_mapping:

@@ -114,25 +114,36 @@ img_path = options.test_path
 
 
 def format_img(img, C):
+    '''
+        return coefficient necessary to resize the image.
+    '''
     img_min_side = float(C.im_size)
     (height, width, _) = img.shape
-
-    if width <= height:
-        f = img_min_side / width
-        new_height = int(f * height)
+    
+    if C.fixed_size:
         new_width = int(img_min_side)
-    else:
-        f = img_min_side / height
-        new_width = int(f * width)
         new_height = int(img_min_side)
+    else:
+        
+        if width <= height:
+            f = img_min_side / width
+            new_height = int(f * height)
+            new_width = int(img_min_side)
+        else:
+            f = img_min_side / height
+            new_width = int(f * width)
+            new_height = int(img_min_side)
+            
     fx = width / float(new_width)
     fy = height / float(new_height)
     img = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_CUBIC)
     img = img[:, :, (2, 1, 0)]
     img = img.astype(np.float32)
-    img[:, :, 0] -= C.img_channel_mean[0]
-    img[:, :, 1] -= C.img_channel_mean[1]
-    img[:, :, 2] -= C.img_channel_mean[2]
+    
+    if C.remove_mean:
+        img[:, :, 0] -= C.img_channel_mean[0]
+        img[:, :, 1] -= C.img_channel_mean[1]
+        img[:, :, 2] -= C.img_channel_mean[2]
     img /= C.img_scaling_factor
     img = np.transpose(img, (2, 0, 1))
     img = np.expand_dims(img, axis=0)
@@ -249,7 +260,7 @@ for idx, img_data in enumerate(test_imgs):
                 x, y, w, h = roi_helpers.apply_regr(x, y, w, h, tx, ty, tw, th)
             except:
                 pass
-            bboxes[cls_name].append([16 * x, 16 * y, 16 * (x + w), 16 * (y + h)])
+            bboxes[cls_name].append([C.rpn_stride * x, C.rpn_stride * y, C.rpn_stride * (x + w), C.rpn_stride * (y + h)])
             probs[cls_name].append(np.max(P_cls[0, ii, :]))
 
     all_dets = []

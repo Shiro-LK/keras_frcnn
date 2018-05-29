@@ -16,10 +16,13 @@ from keras_frcnn import config, data_generators
 from keras_frcnn import losses as losses
 import keras_frcnn.roi_helpers as roi_helpers
 from keras.utils import generic_utils
-from keras_frcnn.get_validation_loss import get_validation_loss
-
+from keras_frcnn.get_validation_loss import get_validation_loss, get_validation_lossv2
+import tensorflow as tf
 import linecache
-import sys
+from functions import createSummaryTensorboard, TensorboardWrite
+seed = 10
+random.seed(seed)
+np.random.seed(seed)
 
 def PrintException():
     exc_type, exc_obj, tb = sys.exc_info()
@@ -39,16 +42,17 @@ sys.setrecursionlimit(40000)
 
 parser = OptionParser()
 
-parser.add_option("-p", "--path", dest="path", help="Path to training data.")
-parser.add_option("-pi", "--path_image", dest="path_image", help="Path to training image.", default='../')
+parser.add_option("-p", "--path", dest="path", help="Path to training data (txt file).")
+parser.add_option("--pi", "--path_image", dest="path_image", help="Path to training image.", default='../')
 parser.add_option("-o", "--parser", dest="parser", help="Parser to use. One of simple or pascal_voc",
                 default="simple")
 
-parser.add_option("-s", "--size", dest="size", help="indicate the fixed size", default=None)
+parser.add_option("--sf", "--size_fixed", dest="size_fixed", help="indicate if the fixed size", action="store_true", default=False)
+parser.add_option("-s", "--size", dest="size", help="indicate if the fixed size", default=600)
 parser.add_option("-n", "--num_rois", dest="num_rois", help="Number of RoIs to process at once.", default=32)
 parser.add_option("--network", dest="network", help="Base network to use. Supports vgg, vgg_lite, or resnet50.", default='resnet50')
 parser.add_option("--hf", dest="horizontal_flips", help="Augment with horizontal flips in training. (Default=false).", action="store_true", default=False)
-parser.add_option("--vf", dest="vertical_flips", help="Augment with vertical flips in training. (Default=false).", action="store_true", default=True)
+parser.add_option("--vf", dest="vertical_flips", help="Augment with vertical flips in training. (Default=false).", action="store_true", default=False)
 parser.add_option("--rot", "--rot_90", dest="rot_90", help="Augment with 90 degree rotations in training. (Default=false).",
                   action="store_true", default=False)
 parser.add_option("--num_epochs", dest="num_epochs", help="Number of epochs.", default=2000)
@@ -57,9 +61,11 @@ parser.add_option("--config_filename", dest="config_filename", help=
                 default="config.pickle")
 parser.add_option("--output_weight_path", dest="output_weight_path", help="Output path for weights.", default='./model_frcnn.hdf5')
 parser.add_option("--input_weight_path", dest="input_weight_path", help="Input path for weights. If not specified, will try to load default weights provided by keras.")
-parser.add_option("--use_validation", dest="use_validation", help="Determines if we evaluate against the validation set loss.", default=False)
+parser.add_option("--use_validation", dest="use_validation", help="Determines if we evaluate against the validation set loss.", action="store_true", default=False)
+parser.add_option("--tensorboard_images", dest="tensorboard_images", help="Print boxes of n first images in tensorboard during validation.", default=0)
 parser.add_option("--logs_path", dest="logs_path", help="Where logs for the losses should be saved.", default='./logs.csv')
-
+parser.add_option("--remove_mean", dest="remove_mean", help="remove mean value in RGB image (default=False)", action="store_true", default=False)
+parser.add_option("-c", "--channels", dest="channels", help="Number of channels in the image (RGB = 3)", default=3)
 (options, args) = parser.parse_args()
 
 if not options.path:   # if filename is not given
@@ -81,20 +87,35 @@ C.rot_90 = bool(options.rot_90)
 
 C.model_path = options.output_weight_path
 C.num_rois = int(options.num_rois)
-
+C.remove_mean = bool(options.remove_mean)
 C.use_validation = bool(options.use_validation)
 C.logs_path = options.logs_path
+C.tensorboard_images = int(options.tensorboard_images)
+
 
 if options.size is not None:
     C.im_size = int(options.size)
-    print('Input size image : ', C.im_size, 'x', C.im_size)
-else:
+    
+if options.size_fixed == False:
+    C.fixed_size = False
     print('Input size min image : ', C.im_size)
+else:
+	C.fixed_size = True
+	print('Input size image : ', C.im_size, 'x', C.im_size)
+print('Compute Loss Validation : ', C.use_validation)
+print('Remove mean from image : ', C.remove_mean)
+print('number of images in tensorboard :', C.tensorboard_images)
+#######################
+### Tensorboard #######
+#######################
+if C.use_validation == True:
+    writer_test = tf.summary.FileWriter('tmp/test')
 
+writer_train = tf.summary.FileWriter('tmp/train')
 ########################
 #### Choose model ######
 ########################
-
+num_features = 512
 if options.network == 'vgg':
     C.network = 'vgg'
     from keras_frcnn import vgg as nn
@@ -104,9 +125,11 @@ elif options.network == 'vgg_lite':
 elif options.network == 'resnet50':
     from keras_frcnn import resnet as nn
     C.network = 'resnet50'
+    num_features = 1024
 elif options.network == 'mobilenet':
-    from keras_frcnn import networks as nn
+    from keras_frcnn import mobilenet as nn
     C.network = 'mobilenet'
+    num_features = 1024
 elif options.network == 'squeezenet':
     from keras_frcnn import squeezenet as nn
     C.network = 'squeezenet'
@@ -127,7 +150,7 @@ else:
 ### Load data and labels #
 ##########################
     
-all_imgs, classes_count, class_mapping, classes_count_train, classes_count_test = get_data(options.path)
+all_imgs, classes_count, class_mapping, classes_count_train, classes_count_test = get_data(options.path, path=options.path_image)
 
 print('##### Count train and test data ####', classes_count_train, classes_count_test)
       
@@ -158,10 +181,10 @@ random.shuffle(all_imgs)
 num_imgs = len(all_imgs)
 
 train_imgs = [s for s in all_imgs if s['imageset'] == 'training']
-val_imgs = [s for s in all_imgs if s['imageset'] == 'validation']
+val_imgs = [s for s in all_imgs if s['imageset'] == 'testing']
 
 print('Num train samples {}'.format(len(train_imgs)))
-print('Num val samples {}'.format(len(val_imgs)))
+print('Num test samples {}'.format(len(val_imgs)))
 
 
 data_gen_train = data_generators.get_anchor_gt(train_imgs, classes_count, C, nn.get_img_output_length, K.image_dim_ordering(), mode='train')
@@ -173,11 +196,14 @@ data_gen_val = data_generators.get_anchor_gt(val_imgs, classes_count, C, nn.get_
 ########################
 if K.image_dim_ordering() == 'th':
     input_shape_img = (3, None, None)
-else:
+    input_shape_features = (num_features, None, None)
+else:# tensorflow backend
     input_shape_img = (None, None, 3)
+    input_shape_features = (None, None, num_features)
 
 img_input = Input(shape=input_shape_img)
 roi_input = Input(shape=(None, 4))
+feature_map_input = Input(shape=input_shape_features)# used for prediction validation
 
 # define the base network (resnet here, can be VGG, Inception, etc)
 shared_layers = nn.nn_base(img_input, trainable=True)
@@ -187,27 +213,35 @@ num_anchors = len(C.anchor_box_scales) * len(C.anchor_box_ratios)
 rpn = nn.rpn(shared_layers, num_anchors)
 
 classifier = nn.classifier(shared_layers, roi_input, C.num_rois, nb_classes=len(classes_count), trainable=True)
+classifier_only = nn.classifier(feature_map_input, roi_input, C.num_rois, nb_classes=len(classes_count), trainable=True)
 
-model_rpn = Model(img_input, rpn[:2])
+model_rpn = Model(img_input, rpn)
+
+model_classifier_only = Model([feature_map_input, roi_input], classifier_only)
 model_classifier = Model([img_input, roi_input], classifier)
 
 # this is a model that holds both the RPN and the classifier, used to load/save weights for the models
 model_all = Model([img_input, roi_input], rpn[:2] + classifier)
 
+print('model loaded !')
 try:
     print('loading weights from {}'.format(C.base_net_weights))
     model_rpn.load_weights(C.base_net_weights, by_name=True)
     model_classifier.load_weights(C.base_net_weights, by_name=True)
+    model_classifier_only.load_weights(C.base_net_weights, by_name=True)
 except:
     print('Could not load pretrained model weights. Weights can be found in the keras application folder \
         https://github.com/fchollet/keras/tree/master/keras/applications')
 
 optimizer = Adam(lr=1e-5)
 optimizer_classifier = Adam(lr=1e-5)
-model_rpn.compile(optimizer=optimizer, loss=[losses.rpn_loss_cls(num_anchors), losses.rpn_loss_regr(num_anchors)])
+
+model_rpn.compile(optimizer=optimizer, loss=[losses.rpn_loss_cls(num_anchors), losses.rpn_loss_regr(num_anchors), None])
+model_classifier_only.compile(optimizer='sgd', loss='mse')
 model_classifier.compile(optimizer=optimizer_classifier, loss=[losses.class_loss_cls, losses.class_loss_regr(len(classes_count)-1)], metrics={'dense_class_{}'.format(len(classes_count)): 'accuracy'})
 model_all.compile(optimizer='sgd', loss='mae')
 
+model_all.summary()
 
 ################
 ## Parameters ##
@@ -229,9 +263,12 @@ if C.use_validation:
 
 
 class_mapping_inv = {v: k for k, v in class_mapping.items()}
+
+##############
+## Training ##
+##############
 print('Starting training')
 
-vis = True
 
 for epoch_num in range(0,num_epochs):
 
@@ -239,6 +276,7 @@ for epoch_num in range(0,num_epochs):
     print('Epoch {}/{}'.format(epoch_num+1 , num_epochs))
 
     while True:
+		# continue until we reach the number of iteration necessary for one epoch.
         try:
 
             if len(rpn_accuracy_rpn_monitor) == epoch_length and C.verbose:
@@ -251,7 +289,9 @@ for epoch_num in range(0,num_epochs):
             X, Y, img_data = next(data_gen_train)
 
             loss_rpn = model_rpn.train_on_batch(X, Y)
-
+            #loss_rpn = loss_rpn[0:2]
+            
+            
             P_rpn = model_rpn.predict_on_batch(X)
 
             R = roi_helpers.rpn_to_roi(P_rpn[0], P_rpn[1], C, K.image_dim_ordering(), use_regr=True, overlap_thresh=0.7, max_boxes=300)
@@ -325,8 +365,8 @@ for epoch_num in range(0,num_epochs):
                 rpn_accuracy_for_epoch = []
                 
                 if C.use_validation:
-                    val_losses = get_validation_loss(data_gen_val, len(val_imgs),
-                                                     model_rpn, model_classifier, C)
+                    val_losses = get_validation_lossv2(data_gen_val, len(val_imgs),
+                                                     model_rpn, model_classifier, model_classifier_only, C, writer_tensorboard = writer_test)
 
                 if C.verbose:
                     print('Mean number of bounding boxes from RPN overlapping ground truth boxes: {}'.format(mean_overlapping_bboxes))
@@ -336,6 +376,10 @@ for epoch_num in range(0,num_epochs):
                     print('Loss Detector classifier: {}'.format(loss_class_cls))
                     print('Loss Detector regression: {}'.format(loss_class_regr))
                     print('Total losss :{}'.format(curr_loss))
+                    
+                    train_summary = createSummaryTensorboard(mean_overlapping_bboxes, class_acc, loss_rpn_cls, loss_rpn_regr, loss_class_cls, loss_class_regr, curr_loss)
+                    TensorboardWrite(writer_train, train_summary, step=epoch_num+1)
+
                     if C.use_validation:
                         print(('Validation mean number of bounding boxes from RPN overlapping ground truth boxes:' + 
                                '{}'.format(val_losses['mean_overlapping_bboxes'])))
@@ -344,7 +388,11 @@ for epoch_num in range(0,num_epochs):
                         print('Validation loss RPN regression: {}'.format(val_losses['loss_rpn_regr']))
                         print('Validation loss Detector classifier: {}'.format(val_losses['loss_class_cls']))
                         print('Validation loss Detector regression: {}'.format(val_losses['loss_class_regr']))
-                        print('Validation total loss :{}'.format(val_losses['curr_loss']))                          
+                        print('Validation total loss :{}'.format(val_losses['curr_loss'])) 
+                        
+                        test_summary = createSummaryTensorboard(val_losses['mean_overlapping_bboxes'], val_losses['class_acc'], val_losses['loss_rpn_cls'], val_losses['loss_rpn_regr'],
+                                                                val_losses['loss_class_cls'], val_losses['loss_class_regr'], val_losses['curr_loss'])
+                        TensorboardWrite(writer_test, test_summary, step=epoch_num+1)                         
                     print('Elapsed time: {}'.format(time.time() - start_time))
                 iter_num = 0
                 start_time = time.time()
@@ -381,8 +429,11 @@ for epoch_num in range(0,num_epochs):
                     else:
                         if C.verbose:
                             print('Validation total loss did not decrease.')
-
+                
+                print('Saving logs')
+                pd.DataFrame(loss_log).to_csv(C.logs_path)
                 break
+                
 
         except Exception as e:
             print('Exception: {}'.format(e))
