@@ -101,10 +101,11 @@ if options.size_fixed == False:
     print('Input size min image : ', C.im_size)
 else:
 	C.fixed_size = True
-	print('Input size image : ', C.im_size, 'x', C.im_size)
+	print('Input size image fixed : ', C.im_size, 'x', C.im_size)
 print('Compute Loss Validation : ', C.use_validation)
 print('Remove mean from image : ', C.remove_mean)
 print('number of images in tensorboard :', C.tensorboard_images)
+print('flips horizontal, vertical and rotation : ', C.use_horizontal_flips, C.use_vertical_flips, C.rot_90)
 #######################
 ### Tensorboard #######
 #######################
