@@ -78,6 +78,10 @@ def get_data(input_path, path=''):
             print('Number of classes : ', len(classes_count_train.keys()))
             return all_data, classes_count, class_mapping, classes_count_train, classes_count_test
         else:
+            print('Number of classes train: ', len(classes_count_train.keys()))
+            print(classes_count_train)
+            print('Number of classes test: ', len(classes_count_test.keys()))
+            print(classes_count_test)
             return None, None, None, None, None
 
 
