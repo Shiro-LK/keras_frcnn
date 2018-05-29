@@ -71,7 +71,7 @@ if options.test_path is not None:
         filepath = os.path.join(img_path,img_name)
 
         img = cv2.imread(filepath)
-        img, all_dets = predict_on_image(img, model_rpn, model_classifier_only, C, class_mapping_inv, class_to_color, bbox_threshold=bbox_threshold, overlap_threshold_rpn=overlap_threshold_rpn, overlap_threshold_classifier=overlap_threshold_class)
+        img, all_dets = predict_on_image(img, model_rpn, model_classifier_only, C, class_mapping_inv, class_to_color, bbox_threshold=bbox_threshold, overlap_thresh_rpn=overlap_threshold_rpn, overlap_thresh_classifier=overlap_threshold_class)
         print('Elapsed time = {}'.format(time.time() - st))
         print(all_dets)
         cv2.imshow('img', img)
@@ -86,7 +86,7 @@ if options.test_image is not None:
     print(img_name)
     st = time.time()
     img = cv2.imread(img_name)
-    img, all_dets = predict_on_image(img, model_rpn, model_classifier_only, C, class_mapping_inv, class_to_color, bbox_threshold=bbox_threshold, overlap_threshold_rpn=overlap_threshold_rpn, overlap_threshold_classifier=overlap_threshold_class)
+    img, all_dets = predict_on_image(img, model_rpn, model_classifier_only, C, class_mapping_inv, class_to_color, bbox_threshold=bbox_threshold, overlap_thresh_rpn=overlap_threshold_rpn, overlap_thresh_classifier=overlap_threshold_class)
     print('Elapsed time = {}'.format(time.time() - st))
     print(all_dets)
     cv2.imshow('img', img)
