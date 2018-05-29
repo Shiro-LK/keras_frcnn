@@ -7,7 +7,8 @@ import numpy as np
 from optparse import OptionParser
 import pickle
 import pandas as pd
-
+import os 
+dir_path = os.path.dirname(os.path.realpath(__file__))
 from keras import backend as K
 from keras.optimizers import Adam, SGD, RMSprop
 from keras.layers import Input
@@ -24,6 +25,7 @@ seed = 10
 random.seed(seed)
 np.random.seed(seed)
 
+print('current path : ', dir_path)
 def PrintException():
     exc_type, exc_obj, tb = sys.exc_info()
     f = tb.tb_frame
