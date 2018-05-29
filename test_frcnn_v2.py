@@ -24,7 +24,7 @@ parser.add_option("--config_filename", dest="config_filename", help=
                 default="config.pickle")
 parser.add_option("-b", "--bbox_threshold", dest="bbox_threshold", help="bbox_threshold", default=0.8)
 parser.add_option("-r", "--overlap_threshold_rpn", dest="overlap_threshold_rpn", help="overlap_threshold_rpn", default=0.7)
-parser.add_option("-c", "--overlap_thresh_classifier", dest="overlap_thresh_classifier", help="overlap_thresh_classifier", default=0.5)
+parser.add_option("-c", "--overlap_threshold_classifier", dest="overlap_threshold_classifier", help="overlap_thresh_classifier", default=0.5)
 (options, args) = parser.parse_args()
 
 if not options.test_path and not options.test_image:   # if filename is not given or image is not given
@@ -59,8 +59,8 @@ C.num_rois = int(options.num_rois)
 model_rpn, model_classifier_only  = load_models_for_test(C, class_mapping)
 
 bbox_threshold = float(options.bbox_threshold)
-overlap_threshold_rpn = float(options.overlap_thresh_rpn)
-overlap_threshold_class = float(options.overlap_thresh_classifier)
+overlap_threshold_rpn = float(options.overlap_threshold_rpn)
+overlap_threshold_class = float(options.overlap_threshold_classifier)
 
 if options.test_path is not None:
     img_path = options.test_path
