@@ -30,7 +30,7 @@ def calc_iou(R, img_data, C, class_mapping):
     bboxes = img_data['bboxes']
     (width, height) = (img_data['width'], img_data['height'])
     # get image dimensions for resizing
-    (resized_width, resized_height) = data_generators.get_new_img_size(width, height, C.im_size)
+    (resized_width, resized_height) = data_generators.get_new_img_size(width, height, C.im_size, C.fixed_size)
 
     gta = np.zeros((len(bboxes), 4))
 
@@ -180,23 +180,22 @@ def apply_regr_np(X, T):
         return X
 
 
-def non_max_suppression_fast(boxes, overlap_thresh=0.9, max_boxes=300):
+def non_max_suppression_fast(boxes, probs, overlap_thresh=0.9, max_boxes=300):
     '''
     Non maximum suppression by overlap treshold and constrained to max_boxes
     
     # Args
-        | boxes: 2D matrix (num_achors * rows * cols, 5) where each row stores [x1, y1, x2, y2, prob]
+        | boxes: 2D matrix (num_achors * rows * cols, 4) where each row stores [x1, y1, x2, y2]
     
     # Return
         | a 2D matrixs (n,5) after non maximum suppresion where each row stores [x1, y1, x2, y2, prob], n is the number of boxes returned 
     
     '''
-    # I changed this method with boxes already contains probabilities, so don't need prob send in this method
-    # TODO: Caution!!! now the boxes actually is [x1, y1, x2, y2, prob] format!!!! with prob built in
+    # code used from here: http://www.pyimagesearch.com/2015/02/16/faster-non-maximum-suppression-python/
+    # if there are no boxes, return an empty list
     if len(boxes) == 0:
         return []
-    # normalize to np.array
-    boxes = np.array(boxes)
+
     # grab the coordinates of the bounding boxes
     x1 = boxes[:, 0]
     y1 = boxes[:, 1]
@@ -206,43 +205,58 @@ def non_max_suppression_fast(boxes, overlap_thresh=0.9, max_boxes=300):
     np.testing.assert_array_less(x1, x2)
     np.testing.assert_array_less(y1, y2)
 
+    # if the bounding boxes integers, convert them to floats --
+    # this is important since we'll be doing a bunch of divisions
     if boxes.dtype.kind == "i":
         boxes = boxes.astype("float")
 
+    # initialize the list of picked indexes    
     pick = []
-    area = (x2 - x1) * (y2 - y1)
-    # sorted by boxes last element which is prob
-    indexes = np.argsort([i[-1] for i in boxes])
 
-    while len(indexes) > 0:
-        last = len(indexes) - 1
-        i = indexes[last]
+    # calculate the areas
+    area = (x2 - x1) * (y2 - y1)
+
+    # sort the bounding boxes 
+    idxs = np.argsort(probs)
+
+    # keep looping while some indexes still remain in the indexes
+    # list
+    while len(idxs) > 0:
+        # grab the last index in the indexes list and add the
+        # index value to the list of picked indexes
+        last = len(idxs) - 1
+        i = idxs[last]
         pick.append(i)
 
         # find the intersection
-        xx1_int = np.maximum(x1[i], x1[indexes[:last]])
-        yy1_int = np.maximum(y1[i], y1[indexes[:last]])
-        xx2_int = np.minimum(x2[i], x2[indexes[:last]])
-        yy2_int = np.minimum(y2[i], y2[indexes[:last]])
+
+        xx1_int = np.maximum(x1[i], x1[idxs[:last]])
+        yy1_int = np.maximum(y1[i], y1[idxs[:last]])
+        xx2_int = np.minimum(x2[i], x2[idxs[:last]])
+        yy2_int = np.minimum(y2[i], y2[idxs[:last]])
 
         ww_int = np.maximum(0, xx2_int - xx1_int)
         hh_int = np.maximum(0, yy2_int - yy1_int)
 
         area_int = ww_int * hh_int
+
         # find the union
-        area_union = area[i] + area[indexes[:last]] - area_int
+        area_union = area[i] + area[idxs[:last]] - area_int
 
         # compute the ratio of overlap
-        overlap = area_int / (area_union + 1e-6)
+        overlap = area_int/(area_union + 1e-6)
 
         # delete all indexes from the index list that have
-        indexes = np.delete(indexes, np.concatenate(([last], np.where(overlap > overlap_thresh)[0])))
+        idxs = np.delete(idxs, np.concatenate(([last],
+            np.where(overlap > overlap_thresh)[0])))
 
         if len(pick) >= max_boxes:
             break
+
     # return only the bounding boxes that were picked using the integer data type
-    boxes = boxes[pick]
-    return boxes
+    boxes = boxes[pick].astype("int")
+    probs = probs[pick]
+    return boxes, probs
 
 
 def rpn_to_roi(rpn_layer, regr_layer, cfg, dim_ordering, use_regr=True, max_boxes=300, overlap_thresh=0.9):
@@ -342,15 +356,9 @@ def rpn_to_roi(rpn_layer, regr_layer, cfg, dim_ordering, use_regr=True, max_boxe
     all_boxes = np.delete(all_boxes, ids, 0)
     all_probs = np.delete(all_probs, ids, 0)
 
-    # Concatenate two matries 
-    #    (num_anchors*rows*cols,4) + (num_anchors*rows*cols,1)
-    # and get (num_anchors*rows*cols,5), each row has (x1,y1,x2,y2,prob)
     
-    all_boxes = np.hstack((all_boxes, np.array([[p] for p in all_probs])))
     
     # After non_max_suppression, the boxes number is reduced 
-    result = non_max_suppression_fast(all_boxes, overlap_thresh=overlap_thresh, max_boxes=max_boxes)
-    # omit the last column which is prob
-    # export a matrix in shape of (num_anchors*rows*cols,4)
-    result = result[:, 0: -1]
+    result = non_max_suppression_fast(all_boxes, probs=all_probs, overlap_thresh=overlap_thresh, max_boxes=max_boxes)[0]
+
     return result

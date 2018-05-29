@@ -48,8 +48,11 @@ def TensorboardImage(writer, image, number):
     summary =  tf.Summary(value=[tf.Summary.Value(tag='image_'+str(number), image=img )])
     writer.add_summary(summary)
 
-def get_validation_lossv2(data_gen_val, epoch_length, model_rpn, model_classifier, model_classifier_only, C,  writer_tensorboard=None):
-    
+def get_validation_lossv2(data_gen_val, epoch_length, model_rpn, model_classifier, model_classifier_only, C, class_mapping_inv, class_to_color, writer_tensorboard=None, threshold=[0.8, 0.7, 0.5]):
+    '''
+        compute loss on validation data. Can also print images on tensorboard with the boxes predicted.
+        threshold : bbox, rpn, classifier
+    '''
     losses = np.zeros((epoch_length, 5))
     rpn_accuracy_rpn_monitor = []
     rpn_accuracy_for_epoch = []
@@ -78,7 +81,7 @@ def get_validation_lossv2(data_gen_val, epoch_length, model_rpn, model_classifie
 
             P_rpn = model_rpn.predict_on_batch(X)
 
-            R = roi_helpers.rpn_to_roi(P_rpn[0], P_rpn[1], C, K.image_dim_ordering(), use_regr=True, overlap_thresh=0.7, max_boxes=300)
+            R = roi_helpers.rpn_to_roi(P_rpn[0], P_rpn[1], C, K.image_dim_ordering(), use_regr=True, overlap_thresh=threshold[1], max_boxes=300)
             
             # note: calc_iou converts from (x1,y1,x2,y2) to (x,y,w,h) format
             X2, Y1, Y2, IouS = roi_helpers.calc_iou(R, img_data, C, class_mapping)
@@ -157,8 +160,8 @@ def get_validation_lossv2(data_gen_val, epoch_length, model_rpn, model_classifie
                     print('Exception Validation: iter num {}, {}'.format(iter_num, e))
                     PrintException()
                     exit()
-                class_to_color = {class_mapping[v]: np.random.randint(0, 255, 3) for v in class_mapping}
-                img, all_dets = predict_on_image(np.copy(X), model_rpn, model_classifier_only, C, class_mapping, class_to_color, bbox_threshold = 0.8, overlap_thresh_rpn = 0.7, overlap_thresh_classifier = 0.5, tensorboard=True)
+                
+                img, all_dets = predict_on_image(np.copy(X), model_rpn, model_classifier_only, C, class_mapping_inv, class_to_color, bbox_threshold = threshold[0], overlap_thresh_rpn = threshold[1], overlap_thresh_classifier = threshold[2], tensorboard=True)
                 print('writer tensorboard')
                 TensorboardImage(writer_tensorboard, img, iter_num - 1)
             
