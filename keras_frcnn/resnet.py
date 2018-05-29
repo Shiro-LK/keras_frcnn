@@ -12,17 +12,17 @@ from keras.layers import Input, Add, Dense, Activation, Flatten, Convolution2D, 
     AveragePooling2D, TimeDistributed
 
 from keras import backend as K
-
+from keras.utils.data_utils import get_file
 from keras_frcnn.roi_pooling_conv import RoiPoolingConv
 from keras_frcnn.fixed_batch_normalization import FixedBatchNormalization
-
+WEIGHTS_PATH = 'https://github.com/fchollet/deep-learning-models/releases/download/v0.2/resnet50_weights_tf_dim_ordering_tf_kernels.h5'
 
 def get_weight_path():
     if K.image_dim_ordering() == 'th':
         return 'resnet50_weights_th_dim_ordering_th_kernels_notop.h5'
     else:
-        return 'resnet50_weights_tf_dim_ordering_tf_kernels.h5'
-
+        weights_path = get_file('resnet50_weights_tf_dim_ordering_tf_kernels.h5', WEIGHTS_PATH,cache_subdir='models', md5_hash='a7b3fe01876f51b976af0dea6bc144eb')
+        return weights_path
 
 def get_img_output_length(width, height):
     def get_output_length(input_length):
