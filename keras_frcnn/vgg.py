@@ -144,7 +144,7 @@ def classifier(base_layers, input_rois, num_rois, nb_classes=21, trainable=False
 #    elif K.backend() == 'theano':
 #        pooling_regions = 7
 #        input_shape = (num_rois, 512, 7, 7)
-   pooling_regions = 7
+    pooling_regions = 7
     out_roi_pool = RoiPoolingConv(pooling_regions, num_rois)([base_layers, input_rois])
 
     out = TimeDistributed(Flatten(name='flatten'), name='TimeDistributed_flatten')(out_roi_pool)
