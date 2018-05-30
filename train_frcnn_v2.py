@@ -57,7 +57,7 @@ parser.add_option("--output_weight_path", dest="output_weight_path", help="Outpu
 parser.add_option("--input_weight_path", dest="input_weight_path", help="Input path for weights. If not specified, will try to load default weights provided by keras.")
 parser.add_option("--use_validation", dest="use_validation", help="Determines if we evaluate against the validation set loss.", action="store_true", default=False)
 parser.add_option("--tensorboard_images", dest="tensorboard_images", help="Print boxes of n first images in tensorboard during validation.", default=0)
-parser.add_option("--tensorboard_path", dest="tensorboard_images", help="Path to save tensorboard logs.", default='tmp/')
+parser.add_option("--tensorboard_path", dest="tensorboard_path", help="Path to save tensorboard logs.", default='tmp/')
 parser.add_option("--logs_path", dest="logs_path", help="Where logs for the losses should be saved.", default='./logs.csv')
 parser.add_option("--remove_mean", dest="remove_mean", help="remove mean value in RGB image (default=False)", action="store_true", default=False)
 parser.add_option("--channels", dest="channels", help="Number of channels in the image (RGB = 3)", default=3)
