@@ -10,19 +10,11 @@ from PIL import Image
 import io
 from functions import PrintException, load_model_weights
 
-#def PrintException():
-#    exc_type, exc_obj, tb = sys.exc_info()
-#    f = tb.tb_frame
-#    lineno = tb.tb_lineno
-#    filename = f.f_code.co_filename
-#    linecache.checkcache(filename)
-#    line = linecache.getline(filename, lineno, f.f_globals)
-#    print('EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj))
-
-def TensorboardImage(writer, image, number):
+def TensorboardImage(writer, image, number=0, step=0):
     '''
-        writer : 
-        images : image OPENCV format. (value between 0 and 255 because of format_img_tensorboard function)
+        writer : buffer to write the image
+        images : image OPENCV format. (value between 0 and 255 because of format_img_tensorboard function) we cast in uint8 because need for tensorboard buffer format.
+        
     '''
     
 
@@ -34,21 +26,37 @@ def TensorboardImage(writer, image, number):
     if channel == 1:
         temp = np.repeat(temp, 3, axis=2)
     temp = temp.astype('uint8')
+    
+    if channel <=3:
+        temp = Image.fromarray(temp)
+        temp.save(output, format='JPEG')
+        image_string = output.getvalue()
+        output.close()
+        img = tf.Summary.Image(height=height,
+                             width=width,
+                             colorspace=channel,
+                             encoded_image_string=image_string)
+            #img = sess.run(tf.summary.image(name='image'+str(i), tensor=np.expand_dims(images[i,:,:,:], axis=0), max_outputs=1))
+    
+        summary =  tf.Summary(value=[tf.Summary.Value(tag='image_'+str(number), image=img )])
+        writer.add_summary(summary, step)
+    else:
+        for i in range(channel):
+            temp_ = np.repeat(temp[:,:, i], 3, axis=2)
+            temp_ = Image.fromarray(temp_)
+            temp_.save(output, format='JPEG')
+            image_string = output.getvalue()
+            output.close()
+            img = tf.Summary.Image(height=height,
+                                 width=width,
+                                 colorspace=3,
+                                 encoded_image_string=image_string)
+                #img = sess.run(tf.summary.image(name='image'+str(i), tensor=np.expand_dims(images[i,:,:,:], axis=0), max_outputs=1))
         
-    temp = Image.fromarray(temp)
-    temp.save(output, format='JPEG')
-    image_string = output.getvalue()
-    output.close()
-    img = tf.Summary.Image(height=height,
-                         width=width,
-                         colorspace=channel,
-                         encoded_image_string=image_string)
-        #img = sess.run(tf.summary.image(name='image'+str(i), tensor=np.expand_dims(images[i,:,:,:], axis=0), max_outputs=1))
+            summary =  tf.Summary(value=[tf.Summary.Value(tag='image_'+str(number)+'channel_'+str(i), image=img )])
+            writer.add_summary(summary, step)
 
-    summary =  tf.Summary(value=[tf.Summary.Value(tag='image_'+str(number), image=img )])
-    writer.add_summary(summary)
-
-def get_validation_lossv2(data_gen_val, epoch_length, model_rpn, model_classifier, model_classifier_only, C, class_mapping_inv, class_to_color, writer_tensorboard=None, threshold=[0.8, 0.7, 0.5]):
+def get_validation_lossv2(data_gen_val, epoch_length, model_rpn, model_classifier, model_classifier_only, C, class_mapping_inv, class_to_color, writer_tensorboard=None, num_epoch=0):
     '''
         compute loss on validation data. Can also print images on tensorboard with the boxes predicted.
         threshold : bbox, rpn, classifier
@@ -56,7 +64,7 @@ def get_validation_lossv2(data_gen_val, epoch_length, model_rpn, model_classifie
     losses = np.zeros((epoch_length, 5))
     rpn_accuracy_rpn_monitor = []
     rpn_accuracy_for_epoch = []
-
+    threshold = C.threshold
     class_mapping = C.class_mapping
     
     iter_num = 0
@@ -162,8 +170,7 @@ def get_validation_lossv2(data_gen_val, epoch_length, model_rpn, model_classifie
                     exit()
                 
                 img, all_dets = predict_on_image(np.copy(X), model_rpn, model_classifier_only, C, class_mapping_inv, class_to_color, bbox_threshold = threshold[0], overlap_thresh_rpn = threshold[1], overlap_thresh_classifier = threshold[2], tensorboard=True)
-                print('writer tensorboard')
-                TensorboardImage(writer_tensorboard, img, iter_num - 1)
+                TensorboardImage(writer_tensorboard, img, iter_num - 1, num_epoch)
             
             #print('end try end if, iter num : {} , epoch num {}'.format(iter_num, epoch_num))
         except Exception as e:

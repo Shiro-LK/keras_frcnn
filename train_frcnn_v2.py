@@ -57,9 +57,14 @@ parser.add_option("--output_weight_path", dest="output_weight_path", help="Outpu
 parser.add_option("--input_weight_path", dest="input_weight_path", help="Input path for weights. If not specified, will try to load default weights provided by keras.")
 parser.add_option("--use_validation", dest="use_validation", help="Determines if we evaluate against the validation set loss.", action="store_true", default=False)
 parser.add_option("--tensorboard_images", dest="tensorboard_images", help="Print boxes of n first images in tensorboard during validation.", default=0)
+parser.add_option("--tensorboard_path", dest="tensorboard_images", help="Path to save tensorboard logs.", default='tmp/')
 parser.add_option("--logs_path", dest="logs_path", help="Where logs for the losses should be saved.", default='./logs.csv')
 parser.add_option("--remove_mean", dest="remove_mean", help="remove mean value in RGB image (default=False)", action="store_true", default=False)
-parser.add_option("-c", "--channels", dest="channels", help="Number of channels in the image (RGB = 3)", default=3)
+parser.add_option("--channels", dest="channels", help="Number of channels in the image (RGB = 3)", default=3)
+parser.add_option("-b", "--bbox_threshold", dest="bbox_threshold", help="bbox_threshold", default=0.8)
+parser.add_option("-r", "--overlap_threshold_rpn", dest="overlap_threshold_rpn", help="overlap_threshold_rpn", default=0.7)
+parser.add_option("-c", "--overlap_threshold_classifier", dest="overlap_threshold_classifier", help="overlap_thresh_classifier", default=0.5)
+
 (options, args) = parser.parse_args()
 
 if not options.path:   # if filename is not given
@@ -85,8 +90,8 @@ C.remove_mean = bool(options.remove_mean)
 C.use_validation = bool(options.use_validation)
 C.logs_path = options.logs_path
 C.tensorboard_images = int(options.tensorboard_images)
-
-
+C.tensorboard_path = options.tensorboard_path
+C.threshold = [float(options.bbox_threshold), float(options.overlap_threshold_rpn), float(options.overlap_threshold_classifier)]
 if options.size is not None:
     C.im_size = int(options.size)
     
@@ -104,9 +109,9 @@ print('flips horizontal, vertical and rotation : ', C.use_horizontal_flips, C.us
 ### Tensorboard #######
 #######################
 if C.use_validation == True:
-    writer_test = tf.summary.FileWriter('tmp/test')
+    writer_test = tf.summary.FileWriter(C.tensorboard_path+'test')
 
-writer_train = tf.summary.FileWriter('tmp/train')
+writer_train = tf.summary.FileWriter(C.tensorboard_path+'train')
 ########################
 #### Choose model ######
 ########################
@@ -301,7 +306,7 @@ for epoch_num in range(0,num_epochs):
             P_rpn = model_rpn.predict_on_batch(X)
             
             # R : (n,4) Each row stores (x1,y1,x2,y2), n is the number of boxes returned after non maximum suppression
-            R = roi_helpers.rpn_to_roi(P_rpn[0], P_rpn[1], C, K.image_dim_ordering(), use_regr=True, overlap_thresh=0.7, max_boxes=300)
+            R = roi_helpers.rpn_to_roi(P_rpn[0], P_rpn[1], C, K.image_dim_ordering(), use_regr=True, overlap_thresh=C.threshold[1], max_boxes=300)
             
             # note: calc_iou converts from (x1,y1,x2,y2) to (x,y,w,h) format
 
@@ -402,7 +407,7 @@ for epoch_num in range(0,num_epochs):
                 
                 if C.use_validation:
                     val_losses = get_validation_lossv2(data_gen_val, len(val_imgs),
-                                                     model_rpn, model_classifier, model_classifier_only, C, class_mapping_inv, class_to_color, writer_tensorboard = writer_test)
+                                                     model_rpn, model_classifier, model_classifier_only, C, class_mapping_inv, class_to_color, writer_tensorboard = writer_test, num_epoch=epoch_num)
 
                 if C.verbose:
                     print('Mean number of bounding boxes from RPN overlapping ground truth boxes: {}'.format(mean_overlapping_bboxes))

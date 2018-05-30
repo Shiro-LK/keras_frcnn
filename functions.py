@@ -114,7 +114,10 @@ def format_img(img, C):
     return img, ratio
 
 def format_img_tensorboard(img, C):
-    """ formats an image for model prediction based on config so as to print in tensorboard """
+    """ 
+        formats an image for model prediction based on config so as to print in tensorboard 
+        img : shape (1, H, W, chan)
+    """
     img, ratio = format_img_size(img[0,:,:,:], C)
     img = format_original_img_channels(img, C)
     return img, ratio
@@ -194,6 +197,7 @@ def predict_on_image(img, model_rpn, model_classifier_only, C, class_mapping_inv
             if K.image_dim_ordering() == 'tf':
                 X = np.transpose(X, (0, 2, 3, 1))
         else:
+        # image to print in tensorboard duuring validation, image already preprocess
             X = np.copy(img)
             img, ratio = format_img_tensorboard(img, C)
             #print('ratio with tensorboard :', ratio)
