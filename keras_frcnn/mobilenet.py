@@ -367,7 +367,7 @@ def classifier(base_layers, input_rois, num_rois, nb_classes=21, trainable=False
 
     out_roi_pool = RoiPoolingConv(pooling_regions, num_rois)([base_layers, input_rois])
     
-    out = classifier_layers(out_roi_pool, trainable=True, alpha=1.0, depth_multiplier=1, trainable=trainable)   
+    out = classifier_layers(out_roi_pool, trainable=True, alpha=1.0, depth_multiplier=1)   
     out = TimeDistributed(AveragePooling2D(name='Global_average_Pooling_classifier_layer'), name='TimeDistributed_AVG')(out)
     
     
