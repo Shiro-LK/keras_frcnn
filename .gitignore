@@ -4,6 +4,7 @@ tmp/
 *.py[cod]
 *$py.class
 test.py
+data/jarvis_dataset.txt
 # C extensions
 *.so
 .idea/
