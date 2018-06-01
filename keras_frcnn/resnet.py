@@ -168,12 +168,12 @@ def conv_block_td(input_tensor, kernel_size, filters, stage, block, input_shape,
     return x
 
 
-def nn_base(input_tensor=None, trainable=False):
+def nn_base(input_tensor=None, trainable=False, channels = 3):
     # Determine proper input shape
     if K.image_dim_ordering() == 'th':
-        input_shape = (3, None, None)
+        input_shape = (channels, None, None)
     else:
-        input_shape = (None, None, 3)
+        input_shape = (None, None, channels)
 
     if input_tensor is None:
         img_input = Input(shape=input_shape)
@@ -188,10 +188,13 @@ def nn_base(input_tensor=None, trainable=False):
     else:
         bn_axis = 1
 
-    x = ZeroPadding2D((3, 3))(img_input)
-
-    x = Convolution2D(64, (7, 7), strides=(2, 2), name='conv1', trainable=trainable)(x)
-    x = FixedBatchNormalization(axis=bn_axis, name='bn_conv1')(x)
+    x = ZeroPadding2D((3, 3), name='conv1_pad')(img_input)
+    if channels == 3:
+        x = Convolution2D(64, (7, 7), strides=(2, 2), name='conv1', trainable=trainable)(x)
+        x = FixedBatchNormalization(axis=bn_axis, name='bn_conv1')(x)
+    else:
+        x = Convolution2D(64, (7, 7), strides=(2, 2), name='conv1_channel_'+str(channels), trainable=trainable)(x)
+        x = FixedBatchNormalization(axis=bn_axis, name='bn_conv1_channel_'+str(channels))(x)
     x = Activation('relu')(x)
     x = MaxPooling2D((3, 3), strides=(2, 2))(x)
 

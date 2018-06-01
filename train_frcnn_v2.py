@@ -74,6 +74,8 @@ if options.parser == 'pascal_voc':
     from keras_frcnn.pascal_voc_parser import get_data
 elif options.parser == 'simple':
     from keras_frcnn.simple_parser import get_data
+elif options.parser == 'simple_multichan':
+    from keras_frcnn.simple_parser_multichan import get_data
 else:
     raise ValueError("Command line option parser must be one of 'pascal_voc' or 'simple'")
 
@@ -84,6 +86,7 @@ C.use_horizontal_flips = bool(options.horizontal_flips)
 C.use_vertical_flips = bool(options.vertical_flips)
 C.rot_90 = bool(options.rot_90)
 
+C.channels = int(options.channels)
 C.model_path = options.output_weight_path
 C.num_rois = int(options.num_rois)
 C.remove_mean = bool(options.remove_mean)
@@ -149,8 +152,10 @@ else:
 ##########################
 ### Load data and labels #
 ##########################
-    
-all_imgs, classes_count, class_mapping, classes_count_train, classes_count_test = get_data(options.path, path=options.path_image)
+if options.parser == 'simple_multichan':   
+    all_imgs, classes_count, class_mapping, classes_count_train, classes_count_test = get_data(options.path, path=options.path_image, channels=C.channels)
+else:
+    all_imgs, classes_count, class_mapping, classes_count_train, classes_count_test = get_data(options.path, path=options.path_image)
 
 print('##### Count train and test data ####', classes_count_train, classes_count_test)
       
@@ -195,10 +200,10 @@ data_gen_val = data_generators.get_anchor_gt(val_imgs, classes_count, C, nn.get_
 #### Load model ########
 ########################
 if K.image_dim_ordering() == 'th':
-    input_shape_img = (3, None, None)
+    input_shape_img = (C.channels, None, None)
     input_shape_features = (num_features, None, None)
 else:# tensorflow backend
-    input_shape_img = (None, None, 3)
+    input_shape_img = (None, None, C.channels)
     input_shape_features = (None, None, num_features)
 
 img_input = Input(shape=input_shape_img)
@@ -206,7 +211,7 @@ roi_input = Input(shape=(None, 4))
 feature_map_input = Input(shape=input_shape_features)# used for prediction validation
 
 # define the base network (resnet here, can be VGG, Inception, etc)
-shared_layers = nn.nn_base(img_input, trainable=True)
+shared_layers = nn.nn_base(img_input, trainable=True, channels=C.channels)
 
 # define the RPN, built on the base layers
 num_anchors = len(C.anchor_box_scales) * len(C.anchor_box_ratios)
@@ -223,7 +228,7 @@ model_classifier = Model([img_input, roi_input], classifier)
 # this is a model that holds both the RPN and the classifier, used to load/save weights for the models
 model_all = Model([img_input, roi_input], rpn[:2] + classifier)
 
-print('model loaded !')
+
 try:
     print('loading weights from {}'.format(C.base_net_weights))
     model_rpn.load_weights(C.base_net_weights, by_name=True)
@@ -477,7 +482,7 @@ for epoch_num in range(0,num_epochs):
                 
 
         except Exception as e:
-            print('Exception: {}'.format(e))
+            print('Exception train: {}'.format(e))
             PrintException()
             continue
 

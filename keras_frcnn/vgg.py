@@ -38,7 +38,7 @@ def get_img_output_length(width, height):
     return get_output_length(width), get_output_length(height)
 
 
-def nn_base(input_tensor=None, trainable=False):
+def nn_base(input_tensor=None, trainable=False, channels = 3):
     '''
     Create a base net starting from input to the feature map
     
@@ -48,9 +48,9 @@ def nn_base(input_tensor=None, trainable=False):
     '''
     # Determine proper input shape
     if K.image_dim_ordering() == 'th':
-        input_shape = (3, None, None)
+        input_shape = (channels, None, None)
     else:
-        input_shape = (None, None, 3)
+        input_shape = (None, None, channels)
 
     if input_tensor is None:
         img_input = Input(shape=input_shape)
@@ -66,7 +66,10 @@ def nn_base(input_tensor=None, trainable=False):
         bn_axis = 1
 
     # Block 1
-    x = Conv2D(64, (3, 3), activation='relu', padding='same', name='block1_conv1')(img_input)
+    if channels == 3:
+        x = Conv2D(64, (3, 3), activation='relu', padding='same', name='block1_conv1')(img_input)
+    else:
+        x = Conv2D(64, (3, 3), activation='relu', padding='same', name='block1_conv1_channel_'+str(channels))(img_input)
     x = Conv2D(64, (3, 3), activation='relu', padding='same', name='block1_conv2')(x)
     x = MaxPooling2D((2, 2), strides=(2, 2), name='block1_pool')(x)
 

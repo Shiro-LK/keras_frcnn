@@ -27,18 +27,49 @@ from keras.layers import BatchNormalization
 from keras.applications.imagenet_utils import _obtain_input_shape
 
 WEIGHTS_PATH = 'https://github.com/wohlert/keras-squeezenet/releases/download/v0.1/squeezenet_weights.h5'
+def get_weight_path():
+    if K.image_dim_ordering() == 'th':
+        print('pretrained weights not available for VGG with theano backend')
+        return
+    else:
+        weights_path = get_file('squeezenet_weights.h5', WEIGHTS_PATH, cache_subdir='models')
+        return weights_path
 
-def _fire(x, filters, name="fire", BN=True):
+def copy_weights(oldmodel, newmodel):
+    dic_w = {}
+    for layer in oldmodel.layers:
+        dic_w[layer.name] = layer.get_weights()
+    
+    for i, layer in enumerate(newmodel.layers):
+        if layer.name in dic_w and layer.name != 'softmax' and layer.name != 'input':
+            #print(newmodel.layers[i].get_weights()[0].shape)
+            #print(newmodel.layers[i].get_weights()[0][:,:,0,0])
+            newmodel.layers[i].set_weights(dic_w[layer.name])
+            print(layer.name)
+            #print(newmodel.layers[i].get_weights()[0][:,:,0,0])
+    return newmodel
+
+def _fire(x, filters, name="fire", BN=True, trainable=False):
     sq_filters, ex1_filters, ex2_filters = filters
-    squeeze = Convolution2D(sq_filters, (1, 1), activation='relu', padding='same', name=name + "_squeeze1x1")(x)
-    expand1 = Convolution2D(ex1_filters, (1, 1), activation='relu', padding='same', name=name + "_expand1x1")(squeeze)
-    expand2 = Convolution2D(ex2_filters, (3, 3), activation='relu', padding='same', name=name + "_expand3x3")(squeeze)
+    squeeze = Convolution2D(sq_filters, (1, 1), activation='relu', trainable=trainable, padding='same', name=name + "_squeeze1x1")(x)
+    expand1 = Convolution2D(ex1_filters, (1, 1), activation='relu', trainable=trainable, padding='same', name=name + "_expand1x1")(squeeze)
+    expand2 = Convolution2D(ex2_filters, (3, 3), activation='relu', trainable=trainable, padding='same', name=name + "_expand3x3")(squeeze)
     x = Concatenate(axis=-1, name=name)([expand1, expand2])
     if BN == True:
         x = BatchNormalization(name=name+'_bn')(x)
     return x
 
-def SqueezeNet(include_top=True, weights="imagenet", input_tensor=None, input_shape=None, pooling=None, classes=1000):
+def _fire_td(x, filters, name="fire_td", BN=True, trainable=False):
+    sq_filters, ex1_filters, ex2_filters = filters
+    squeeze = TimeDistributed(Convolution2D(sq_filters, (1, 1), activation='relu', trainable=trainable, padding='same', name=name + "_squeeze1x1"), name='TimeDistributed_' + name + "_squeeze1x1")(x)
+    expand1 = TimeDistributed(Convolution2D(ex1_filters, (1, 1), activation='relu', trainable=trainable, padding='same', name=name + "_expand1x1"), name='TimeDistributed_' + name + "_expand1x1")(squeeze)
+    expand2 = TimeDistributed(Convolution2D(ex2_filters, (3, 3), activation='relu', trainable=trainable, padding='same', name=name + "_expand3x3"), name='TimeDistributed_' + name + "_expand3x3")(squeeze)
+    x = Concatenate(axis=-1, name=name)([expand1, expand2])
+    if BN == True:
+        x = TimeDistributed(BatchNormalization(name=name+'_bn'), name='TimeDistributed_' + name + '_bn')(x)
+    return x
+
+def SqueezeNet(include_top=True, weights="imagenet", input_tensor=None, input_shape=None, pooling=None, classes=1000, channels=3, trainable=False):
 
     if weights not in {'imagenet', None}:
         raise ValueError('The `weights` argument should be either '
@@ -62,28 +93,29 @@ def SqueezeNet(include_top=True, weights="imagenet", input_tensor=None, input_sh
             img_input = Input(tensor=input_tensor, shape=input_shape)
         else:
             img_input = input_tensor
-
-    x = Convolution2D(64, kernel_size=(3, 3), strides=(2, 2), padding="same", activation="relu", name='conv1')(img_input)
+    if channels != 3:
+        x = Convolution2D(64, kernel_size=(3, 3), strides=(2, 2), padding="same", trainable=trainable, activation="relu", name='conv1_channels_'+str(channels))(img_input)
+    else:
+        x = Convolution2D(64, kernel_size=(3, 3), strides=(2, 2), padding="same", trainable=trainable, activation="relu", name='conv1')(img_input)
     x = MaxPooling2D(pool_size=(3, 3), strides=(2, 2), name='maxpool1', padding="valid")(x)
     x = BatchNormalization(name= 'maxpool1_bn')(x)
     
-    x = _fire(x, (16, 64, 64), name="fire2")
-    x = _fire(x, (16, 64, 64), name="fire3", BN = False)
+    x = _fire(x, (16, 64, 64), name="fire2", trainable=trainable)
+    x = _fire(x, (16, 64, 64), name="fire3", BN = False, trainable=trainable)
 
-    x = MaxPooling2D(pool_size=(3, 3), strides=(2, 2), name='maxpool3', padding="valid")(x)
+    x = MaxPooling2D(pool_size=(3, 3), strides=(2, 2), name='maxpool3', padding="valid", trainable=trainable)(x)
     x = BatchNormalization(name= 'maxpool3_bn')(x)
     
-    x = _fire(x, (32, 128, 128), name="fire4")
-    x = _fire(x, (32, 128, 128), name="fire5", BN=False)
+    x = _fire(x, (32, 128, 128), name="fire4", trainable=trainable)
+    x = _fire(x, (32, 128, 128), name="fire5", BN=False, trainable=trainable)
 
     x = MaxPooling2D(pool_size=(3, 3), strides=(2, 2), name='maxpool5', padding="valid")(x)
     x = BatchNormalization(name= 'maxpool5_bn')(x)
     
-    x = _fire(x, (48, 192, 192), name="fire6")
-    x = _fire(x, (48, 192, 192), name="fire7")
+    x = _fire(x, (48, 192, 192), name="fire6", trainable=trainable)
+    x = _fire(x, (48, 192, 192), name="fire7", trainable=trainable)
 
-    x = _fire(x, (64, 256, 256), name="fire8")
-    x = _fire(x, (64, 256, 256), name="fire9")
+
 
     if include_top:
         x = Dropout(0.5, name='dropout9')(x)
@@ -98,37 +130,18 @@ def SqueezeNet(include_top=True, weights="imagenet", input_tensor=None, input_sh
 #        else:
 #            x = GlobalMaxPooling2D(name="maxpool10")(x)
 
-    model = Model(img_input, x, name="squeezenet")
+#    model = Model(img_input, x, name="squeezenet")
 
-    if weights == 'imagenet':
-        weights_path = get_file('squeezenet_weights.h5',
-                                WEIGHTS_PATH,
-                                cache_subdir='models')
+#    if weights == 'imagenet':
+#        weights_path = get_file('squeezenet_weights.h5',
+#                                WEIGHTS_PATH,
+#                                cache_subdir='models')
+#
+#        model.load_weights(weights_path, by_name=True)
 
-        model.load_weights(weights_path, by_name=True)
+    return x
 
-    return model
 
-def get_weight_path():
-    if K.image_dim_ordering() == 'th':
-        print('pretrained weights not available for VGG with theano backend')
-        return
-    else:
-        return 'model/squeezenetv2_weights.hdf5'
-
-def copy_weights(oldmodel, newmodel):
-    dic_w = {}
-    for layer in oldmodel.layers:
-        dic_w[layer.name] = layer.get_weights()
-    
-    for i, layer in enumerate(newmodel.layers):
-        if layer.name in dic_w and layer.name != 'softmax' and layer.name != 'input':
-            #print(newmodel.layers[i].get_weights()[0].shape)
-            #print(newmodel.layers[i].get_weights()[0][:,:,0,0])
-            newmodel.layers[i].set_weights(dic_w[layer.name])
-            print(layer.name)
-            #print(newmodel.layers[i].get_weights()[0][:,:,0,0])
-    return newmodel
 
 def divide(x):
     x = math.ceil(x/2)
@@ -148,12 +161,12 @@ def get_img_output_length(width, height):
     return get_output_length(width), get_output_length(height)
 
 
-def nn_base(input_tensor=None, trainable=False):
+def nn_base(input_tensor=None, trainable=False, channels=3):
     # Determine proper input shape
     if K.image_dim_ordering() == 'th':
-        input_shape = (3, None, None)
+        input_shape = (channels, None, None)
     else:
-        input_shape = (None, None, 3)
+        input_shape = (None, None, channels)
 
     if input_tensor is None:
         img_input = Input(shape=input_shape)
@@ -163,9 +176,9 @@ def nn_base(input_tensor=None, trainable=False):
         else:
             img_input = input_tensor
 
-    x = SqueezeNet(input_tensor=img_input, include_top=False, weights=None)
-    x.summary()
-    return x.layers[-1].output
+    x = SqueezeNet(input_tensor=img_input, include_top=False, weights=None, channels=channels, trainable=trainable)
+    #x.summary()
+    return x
 
 
 def rpn(base_layers, num_anchors):
@@ -177,7 +190,11 @@ def rpn(base_layers, num_anchors):
 
     return [x_class, x_regr, base_layers]
 
-
+def classifier_layers(x_, trainable=False):
+    x = _fire_td(x_, (64, 256, 256), name="fire8_td", trainable=trainable)
+    x = _fire_td(x, (64, 256, 256), name="fire_td9", trainable=trainable)
+    
+    return x
 def classifier(base_layers, input_rois, num_rois, nb_classes=21, trainable=False):
     # compile times on theano tend to be very high, so we use smaller ROI pooling regions to workaround
 
@@ -189,15 +206,17 @@ def classifier(base_layers, input_rois, num_rois, nb_classes=21, trainable=False
         input_shape = (num_rois, 512, 7, 7)
 
     out_roi_pool = RoiPoolingConv(pooling_regions, num_rois)([base_layers, input_rois])
-
-    out = TimeDistributed(Flatten(name='flatten'))(out_roi_pool)
+    out = classifier_layers(out_roi_pool, trainable=trainable)
+    
+    out = TimeDistributed(AveragePooling2D(name='Global_average_Pooling_classifier_layer'), name='TimeDistributed_AVG')(out)
+    out = TimeDistributed(Flatten(name='flatten'), name='TimeDistributed_flatten')(out)
     #out = TimeDistributed(Dense(4096, activation='relu', name='fc1'))(out)
     #out = TimeDistributed(Dense(4096, activation='relu', name='fc2'))(out)
 
-    out_class = TimeDistributed(Dense(nb_classes, activation='softmax', kernel_initializer='zero'),
+    out_class = TimeDistributed(Dense(nb_classes, activation='softmax', kernel_initializer='zero', name='dense_class'),
                                 name='dense_class_{}'.format(nb_classes))(out)
     # note: no regression target for bg class
-    out_regr = TimeDistributed(Dense(4 * (nb_classes - 1), activation='linear', kernel_initializer='zero'),
+    out_regr = TimeDistributed(Dense(4 * (nb_classes - 1), activation='linear', kernel_initializer='zero', name='dense_regr'),
                                name='dense_regress_{}'.format(nb_classes))(out)
 
     return [out_class, out_regr]
