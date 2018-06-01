@@ -56,7 +56,7 @@ from keras.applications.mobilenet import MobileNet
 from keras.applications.vgg16 import VGG16
 from keras.models import Model
 from keras.layers import Flatten, Dense, Input, Conv2D, MaxPooling2D, DepthwiseConv2D, Conv2D, BatchNormalization
-from keras.layers import GlobalAveragePooling2D, GlobalMaxPooling2D, TimeDistributed, ZeroPadding2D, Reshape, Dropout, Activation
+from keras.layers import GlobalAveragePooling2D,AveragePooling2D, GlobalMaxPooling2D, TimeDistributed, ZeroPadding2D, Reshape, Dropout, Activation
 from keras.engine.topology import get_source_inputs
 from keras.utils import conv_utils
 from keras.utils.data_utils import get_file
@@ -364,7 +364,7 @@ def classifier(base_layers, input_rois, num_rois, nb_classes=21, trainable=False
     out_roi_pool = RoiPoolingConv(pooling_regions, num_rois)([base_layers, input_rois])
     
     out = classifier_layers(out_roi_pool, trainable=True, alpha=1.0, depth_multiplier=1)   
-    #out = TimeDistributed(AveragePooling2D(name='Global_average_Pooling_classifier_layer'), name='TimeDistributed_AVG')(out)
+    out = TimeDistributed(AveragePooling2D(name='Global_average_Pooling_classifier_layer'), name='TimeDistributed_AVG')(out)
     
     
     
