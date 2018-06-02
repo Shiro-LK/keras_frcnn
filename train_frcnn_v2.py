@@ -136,6 +136,7 @@ elif options.network == 'mobilenet':
 elif options.network == 'squeezenet':
     from keras_frcnn import squeezenet as nn
     C.network = 'squeezenet'
+    num_features = 384
 else:
     print('Not a valid model')
     raise ValueError
