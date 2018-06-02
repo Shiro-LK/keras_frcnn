@@ -337,7 +337,7 @@ def nn_base(input_tensor=None, trainable=False, channels=3, alpha=1.0, depth_mul
 
 
 def rpn(base_layers, num_anchors):
-    x = Conv2D(512, (3, 3), padding='same', activation='relu', kernel_initializer='normal', name='rpn_conv1')(
+    x = Conv2D(1024, (3, 3), padding='same', activation='relu', kernel_initializer='normal', name='rpn_conv1')(
         base_layers)
 
     x_class = Conv2D(num_anchors, (1, 1), activation='sigmoid', kernel_initializer='uniform', name='rpn_out_class')(x)
