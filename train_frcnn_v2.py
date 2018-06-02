@@ -132,7 +132,7 @@ elif options.network == 'resnet50':
 elif options.network == 'mobilenet':
     from keras_frcnn import mobilenet as nn
     C.network = 'mobilenet'
-    num_features = 1024
+
 elif options.network == 'squeezenet':
     from keras_frcnn import squeezenet as nn
     C.network = 'squeezenet'
