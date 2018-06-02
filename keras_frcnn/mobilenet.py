@@ -277,16 +277,16 @@ def _depthwise_conv_block_td(inputs, pointwise_conv_filters, alpha,
     channel_axis = 1 if K.image_data_format() == 'channels_first' else -1
     pointwise_conv_filters = int(pointwise_conv_filters * alpha)
 
-    x = TimeDistributed(ZeroPadding2D(padding=(1, 1), name='conv_pad_%d_td' % block_id))(inputs)
+    x = TimeDistributed(ZeroPadding2D(padding=(1, 1), name='conv_pad_%d_td' % block_id), name='TimeDistributed_conv_pad_%d' % block_id)(inputs)
     x = TimeDistributed(DepthwiseConv2D((3, 3),
                         padding='valid',
                         depth_multiplier=depth_multiplier,
                         strides=strides,
                         use_bias=False,
                         trainable=trainable,
-                        name='conv_dw_%d_td' % block_id))(x)
+                        name='conv_dw_%d_td' % block_id), name='TimeDistributed_conv_dw_%d' % block_id)(x)
     x = TimeDistributed(BatchNormalization(
-        axis=channel_axis, name='conv_dw_%d_bn_td' % block_id))(x)
+        axis=channel_axis, name='conv_dw_%d_bn_td' % block_id), name='TimeDistributed_conv_dw_%d_bn' % block_id)(x)
     x = Activation(relu6, name='conv_dw_%d_relu' % block_id)(x)
 
     x = TimeDistributed(Conv2D(pointwise_conv_filters, (1, 1),
@@ -294,9 +294,9 @@ def _depthwise_conv_block_td(inputs, pointwise_conv_filters, alpha,
                use_bias=False,
                strides=(1, 1),
                trainable=trainable,
-               name='conv_pw_%d_td' % block_id))(x)
+               name='conv_pw_%d_td' % block_id), name='TimeDistributed_conv_pw_%d' % block_id)(x)
     x = TimeDistributed(BatchNormalization(
-        axis=channel_axis, name='conv_pw_%d_bn_td' % block_id))(x)
+        axis=channel_axis, name='conv_pw_%d_bn_td' % block_id), name='TimeDistributed_conv_pw_%d_bn' % block_id))(x)
     return Activation(relu6, name='conv_pw_%d_relu' % block_id)(x)
 
 def nn_base(input_tensor=None, trainable=False, channels=3, alpha=1.0, depth_multiplier=1):
