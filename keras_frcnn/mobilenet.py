@@ -296,7 +296,7 @@ def _depthwise_conv_block_td(inputs, pointwise_conv_filters, alpha,
                trainable=trainable,
                name='conv_pw_%d_td' % block_id), name='TimeDistributed_conv_pw_%d' % block_id)(x)
     x = TimeDistributed(BatchNormalization(
-        axis=channel_axis, name='conv_pw_%d_bn_td' % block_id), name='TimeDistributed_conv_pw_%d_bn' % block_id))(x)
+        axis=channel_axis, name='conv_pw_%d_bn_td' % block_id), name='TimeDistributed_conv_pw_%d_bn' % block_id)(x)
     return Activation(relu6, name='conv_pw_%d_relu' % block_id)(x)
 
 def nn_base(input_tensor=None, trainable=False, channels=3, alpha=1.0, depth_multiplier=1):
