@@ -72,6 +72,13 @@ def get_validation_lossv2(data_gen_val, epoch_length, model_rpn, model_classifie
     progbar = generic_utils.Progbar(epoch_length)
     print('Validating')
     
+    try:
+       load_model_weights(model_classifier, model_classifier_only)
+    except Exception as e:
+       print('Exception Validation: iter num {}, {}'.format(iter_num, e))
+       PrintException()
+       exit()
+                    
     for epoch_num in range(0, epoch_length):
 
         try:
@@ -162,12 +169,7 @@ def get_validation_lossv2(data_gen_val, epoch_length, model_rpn, model_classifie
                 mean_overlapping_bboxes = float(sum(rpn_accuracy_for_epoch)) / len(rpn_accuracy_for_epoch)
                 
             if iter_num - 1 < C.tensorboard_images:
-                try:
-                    load_model_weights(model_classifier, model_classifier_only)
-                except Exception as e:
-                    print('Exception Validation: iter num {}, {}'.format(iter_num, e))
-                    PrintException()
-                    exit()
+                
                 
                 img, all_dets = predict_on_image(np.copy(X), model_rpn, model_classifier_only, C, class_mapping_inv, class_to_color, bbox_threshold = threshold[0], overlap_thresh_rpn = threshold[1], overlap_thresh_classifier = threshold[2], tensorboard=True)
                 TensorboardImage(writer_tensorboard, img, iter_num - 1, num_epoch)
