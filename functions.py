@@ -28,7 +28,7 @@ def load_model_weights(model1, model2):
     for i, layers in enumerate(model2.layers):
       if layers.name.find('flatten') == -1 and layers.name.find('input') == -1 and layers.name.find('roi') == -1 and layers.name.find('activation') == -1 and layers.name.find('add') == -1:
             weights_to_copy = model1.get_layer(model2.layers[i].name).get_weights()
-            if model2.layers[i].get_weights().shape == weights_to_copy.shape:
+            if model2.layers[i].get_weights()[0].shape == weights_to_copy[0].shape:
                 model2.layers[i].set_weights(weights_to_copy)
             else:
                 print('mismatch shape between classifier_only {} and classifier {}'.format(weights_to_copy[0].shape, model2.layers[i].get_weights()[0].shape ))
