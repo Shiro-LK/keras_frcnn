@@ -31,8 +31,8 @@ def load_model_weights(model1, model2):
             if model2.layers[i].get_weights().shape == weights_to_copy.shape:
                 model2.layers[i].set_weights(weights_to_copy)
             else:
-                print('mismatch shape between classifier_only {} and classifier {}'.format(weights_to_copy.shape, model2.layers[i].get_weights().shape ))
-    
+                print('mismatch shape between classifier_only {} and classifier {}'.format(weights_to_copy[0].shape, model2.layers[i].get_weights()[0].shape ))
+                print('mismatch shape between classifier_only {} and classifier {}'.format(weights_to_copy[1].shape, model2.layers[i].get_weights()[1].shape ))
     
 def createSummaryTensorboard(mean_bbox, class_acc, loss_rpn_cls, loss_rpn_regr, loss_class_cls, loss_class_regr, curr_loss):
     '''
