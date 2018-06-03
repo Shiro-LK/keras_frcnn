@@ -252,7 +252,7 @@ model_all.summary()
 ################
 ## Parameters ##
 ################
-epoch_length = len(train_imgs)
+epoch_length = 3#len(train_imgs)
 num_epochs = int(options.num_epochs)
 iter_num = 0
 
