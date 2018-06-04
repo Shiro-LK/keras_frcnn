@@ -9,7 +9,7 @@ data/jarvis_dataset.txt
 # C extensions
 *.so
 .idea/
-
+data/*jarvis*
 
 # Distribution / packaging
 .Python
