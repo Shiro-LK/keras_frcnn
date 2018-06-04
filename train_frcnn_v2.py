@@ -357,16 +357,30 @@ for epoch_num in range(0,num_epochs):
             # sel_samples is randomly generated indices
             
             if C.num_rois > 1:
+                
                 if len(pos_samples) < C.num_rois//2:
-                    selected_pos_samples = pos_samples.tolist()
+                    if len(neg_samples) > 0:
+                        selected_pos_samples = pos_samples.tolist()
+                    else:
+                        selected_pos_samples = np.random.choice(pos_samples, C.num_rois, replace=True).tolist()
                 else:
-                    selected_pos_samples = np.random.choice(pos_samples, C.num_rois//2, replace=False).tolist()
-                try:
-                    selected_neg_samples = np.random.choice(neg_samples, C.num_rois - len(selected_pos_samples), replace=False).tolist()
-                except:
-                    selected_neg_samples = np.random.choice(neg_samples, C.num_rois - len(selected_pos_samples), replace=True).tolist()
+                    if len(neg_samples) > 0:
+                        selected_pos_samples = np.random.choice(pos_samples, C.num_rois//2, replace=False).tolist()
+                    else:
+                        selected_pos_samples = np.random.choice(pos_samples, C.num_rois, replace=True).tolist()
+                        
+                        
+                if len(neg_samples) > 0:
+                    try:
+                        selected_neg_samples = np.random.choice(neg_samples, C.num_rois - len(selected_pos_samples), replace=False).tolist()
+                    except:
+                        selected_neg_samples = np.random.choice(neg_samples, C.num_rois - len(selected_pos_samples), replace=True).tolist()
 
-                sel_samples = selected_pos_samples + selected_neg_samples
+                    sel_samples = selected_pos_samples + selected_neg_samples
+                    
+                else:
+                    
+                    sel_samples = selected_pos_samples
             else:
                 # in the extreme case where num_rois = 1, we pick a random pos or neg sample
                 selected_pos_samples = pos_samples.tolist()
