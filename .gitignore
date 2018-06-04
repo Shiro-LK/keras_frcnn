@@ -5,6 +5,7 @@ tmp/
 *$py.class
 test.py
 data/jarvis_dataset.txt
+*jarvis
 # C extensions
 *.so
 .idea/
