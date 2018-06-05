@@ -64,7 +64,10 @@ parser.add_option("--channels", dest="channels", help="Number of channels in the
 parser.add_option("-b", "--bbox_threshold", dest="bbox_threshold", help="bbox_threshold", default=0.8)
 parser.add_option("-r", "--overlap_threshold_rpn", dest="overlap_threshold_rpn", help="overlap_threshold_rpn", default=0.7)
 parser.add_option("-c", "--overlap_threshold_classifier", dest="overlap_threshold_classifier", help="overlap_thresh_classifier", default=0.5)
-
+parser.add_options("--optimizer", dest="optimizer", help='choose optimizer : SGD, RMSprop, Adam', default='adam')
+parser.add_options("--lr", dest="lr", help="choose learning rate, default : 0.0001", default=0.0001)
+parser.add_options("--momentum", dest="momentum", help="choose momentum value, default = 0.9", default=0.9)
+parser.add_options("--wd", dest="wd", help="choose weight decay value, default = 0.0005", default=0.0005)
 (options, args) = parser.parse_args()
 
 if not options.path:   # if filename is not given
@@ -239,9 +242,21 @@ except:
     print('Could not load pretrained model weights. Weights can be found in the keras application folder \
         https://github.com/fchollet/keras/tree/master/keras/applications')
 
-optimizer = Adam(lr=1e-5)
-optimizer_classifier = Adam(lr=1e-5)
-
+lr = float(options.lr)
+wd = float(options.wd)
+momentum = float(options.momentum)
+if options.optimizer.lower() =='adam':
+    optimizer = Adam(lr=lr, decay=wd)
+    optimizer_classifier = Adam(lr=lr, decay=wd)
+elif options.optimizer.lower() =='rmsprop':
+    optimizer = RMSprop(lr=lr, decay=wd)
+    optimizer_classifier = RMSprop(lr=lr, decay=wd)
+elif options.optimizer.lower() =='sgd':
+    optimizer = SGD(lr=lr, decay=wd, momentum=momentum, nesterov=True)
+    optimizer_classifier = SGD(lr=lr, decay=wd, momentum=momentum, nesterov=True)
+else:
+    print('wrong optimizer !')
+    exit()
 model_rpn.compile(optimizer=optimizer, loss=[losses.rpn_loss_cls(num_anchors), losses.rpn_loss_regr(num_anchors), None])
 model_classifier_only.compile(optimizer='sgd', loss='mse')
 model_classifier.compile(optimizer=optimizer_classifier, loss=[losses.class_loss_cls, losses.class_loss_regr(len(classes_count)-1)], metrics={'dense_class_{}'.format(len(classes_count)): 'accuracy'})
