@@ -64,10 +64,10 @@ parser.add_option("--channels", dest="channels", help="Number of channels in the
 parser.add_option("-b", "--bbox_threshold", dest="bbox_threshold", help="bbox_threshold", default=0.8)
 parser.add_option("-r", "--overlap_threshold_rpn", dest="overlap_threshold_rpn", help="overlap_threshold_rpn", default=0.7)
 parser.add_option("-c", "--overlap_threshold_classifier", dest="overlap_threshold_classifier", help="overlap_thresh_classifier", default=0.5)
-parser.add_options("--optimizer", dest="optimizer", help='choose optimizer : SGD, RMSprop, Adam', default='adam')
-parser.add_options("--lr", dest="lr", help="choose learning rate, default : 0.0001", default=0.0001)
-parser.add_options("--momentum", dest="momentum", help="choose momentum value, default = 0.9", default=0.9)
-parser.add_options("--wd", dest="wd", help="choose weight decay value, default = 0.0005", default=0.0005)
+parser.add_option("--optimizer", dest="optimizer", help='choose optimizer : SGD, RMSprop, Adam', default='adam')
+parser.add_option("--lr", dest="lr", help="choose learning rate, default : 0.0001", default=0.0001)
+parser.add_option("--momentum", dest="momentum", help="choose momentum value, default = 0.9", default=0.9)
+parser.add_option("--wd", dest="wd", help="choose weight decay value, default = 0.0005", default=0.0005)
 (options, args) = parser.parse_args()
 
 if not options.path:   # if filename is not given
