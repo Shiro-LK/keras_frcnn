@@ -8,11 +8,15 @@ import xml.etree.ElementTree as ET
 import sys
 import glob
 import cv2
+import numpy as np
+
 def read_pascal_voc(f, filename, path_folder, pathtosave= '', mode='train'):
+
     tree = ET.parse(filename)
     root = tree.getroot()
     plot = False
     prints = False
+
     for child in root:
         if child.tag == 'filename':
             img = path_folder+'JPEGImages/'+child.text
@@ -25,9 +29,16 @@ def read_pascal_voc(f, filename, path_folder, pathtosave= '', mode='train'):
                 print(img)
         elif child.tag == 'object':
             classe = child.find('name').text
-            coordinate = []
+            coordinate = np.zeros(4)
             for box in child.find('bndbox'):
-                coordinate.append(box.text)
+                if box.tag == 'xmin':
+                    coordinate[0] = float(box.text)
+                elif box.tag == 'ymin':
+                    coordinate[1] = float(box.text)
+                elif box.tag == 'xmax':
+                    coordinate[2] = float(box.text)
+                elif box.tag == 'ymax':
+                    coordinate[3] = float(box.text)
             x1 = int(round(float(coordinate[0])))
             y1 = int(round(float(coordinate[1])))
             x2 = int(round(float(coordinate[2])))
@@ -91,12 +102,12 @@ def combine_files(listFile, filename):
         for data in final_data:
             f.write(data)
             
+          
+save_pascal_voc(path_folder='../dataset/VOCdevkit/VOC2007train/', tosave='VOC2007train.txt', path_img='../dataset/VOCdevkit/VOC2007train/JPEGImages/', mode='train')       
+save_pascal_voc(path_folder='../dataset/VOCdevkit/VOC2007test/', tosave='VOC2007test.txt', path_img='../dataset/VOCdevkit/VOC2007test/JPEGImages/', mode='test')
+combine_files(['VOC2007train.txt', 'VOC2007test.txt'], 'VOC2007.txt')
             
-#save_pascal_voc(path_folder='../dataset/VOCdevkit/VOC2007train/Annotations/', tosave='VOC2007train.txt', path_img='../dataset/VOCdevkit/VOC2007train/JPEGImages/', mode='train')       
-#save_pascal_voc(path_folder='../dataset/VOCdevkit/VOC2007test/Annotations/', tosave='VOC2007test.txt', path_img='../dataset/VOCdevkit/VOC2007test/JPEGImages/', mode='test')
-#combine_files(['VOC2007train.txt', 'VOC2007test.txt'], 'VOC2007.txt')
-            
-#save_pascal_voc(path_folder='../dataset/VOCdevkit/VOC2012train/', tosave='VOC2012train.txt', path_img='dataset/VOCdevkit/VOC2012train/JPEGImages/', mode='train')       
+save_pascal_voc(path_folder='../dataset/VOCdevkit/VOC2012train/', tosave='VOC2012train.txt', path_img='dataset/VOCdevkit/VOC2012train/JPEGImages/', mode='train')       
 #save_pascal_voc(path_folder='../dataset/VOCdevkit/VOC2012test/', tosave='VOC2012test.txt', path_img='dataset/VOCdevkit/VOC2012test/JPEGImages/', mode='test')
 #combine_files(['VOC2012train.txt', 'VOC2012test.txt'], 'VOC2012.txt')
-combine_files(['VOC2012.txt', 'VOC2007fulltrain.txt'], 'VOC++.txt')
+combine_files(['VOC2012train.txt', 'VOC2007.txt'], 'VOC++.txt')
